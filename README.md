@@ -1,5 +1,5 @@
 # AcOnOff
-Speicherbatterie in einer Photovoltaik-Insel nachladen oder ausgleichen
+Speicherbatterie in einer Photovoltaik-Insel nachladen oder ausgleichen - eine mögliche Lösung für https://github.com/grasmax/s1/issues/11
 
 Ziel: Nachladen der Solar-Puffer-Batterien in Abhängigkeit vom Batterie-SOC und der Solarprognose
          durch Ein- und Ausschalten der Versorgung des MultiplusII-Chargers mit Stadtstrom an AC-IN
