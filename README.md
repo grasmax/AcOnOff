@@ -14,3 +14,5 @@ Verbrauchswerte werden mit dem Zähler EM540 erfasst.
 * gh_mb_pvpro.py - Abfrage der Solarprognose und Speichern der Ergebnisse in die Datenbank
 * gh_mpIIAcOnOff.py - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
+
+Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11
