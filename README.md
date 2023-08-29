@@ -9,11 +9,11 @@ In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über V
 Verbrauchswerte werden mit dem Zähler EM540 erfasst.
 
 Alle Scripte werden auf diesem Controller ausgeführt:
-    * Raspberry Pi CM4IO Board
-    * CM4001032 Raspberry Pi Compute Module 4, 1GB-RAM, 32GB-eMMC, BCM2711, ARM Cortex-A72
-    * raspberry pi os (32bit) v11
-    * IO CREST JMB582 2 Port SATA III PCI-e 3.0 x1 Non-RAID Controller Karte Jmicro Chipsatz SI-PEX40148
-    * 2TB WD20EFZX
+* Raspberry Pi CM4IO Board
+* CM4001032 Raspberry Pi Compute Module 4, 1GB-RAM, 32GB-eMMC, BCM2711, ARM Cortex-A72
+* raspberry pi os (32bit) v11
+* IO CREST JMB582 2 Port SATA III PCI-e 3.0 x1 Non-RAID Controller Karte Jmicro Chipsatz SI-PEX40148
+* 2TB WD20EFZX
 
 * gh_solarprognose.sql - Script zum Anlegen des Schemas für die MariaDB-Datenbank
 * gh_mariadb_solarprognose.sql - Datenbank-Abfragen
