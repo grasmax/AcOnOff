@@ -164,7 +164,6 @@ class CMbSolarForecast:
          sPwd = "gibts bei MeteoBlue"
 #OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
 
-
 #Um Calls/Credits zu sparen kann das Script ab hier auch mit einer vorher gespeicherten Datei getestet werden:
 #         tNow = datetime.datetime(2023,8,28,13,35)
 #         sNow = tNow.strftime("%Y-%m-%d-%H-%M")
@@ -176,7 +175,6 @@ class CMbSolarForecast:
          response = requests.get(api_url)
          data = response.json()
 
-
          #für Vergleichszwecke auch noch als Datei speichern
          sPretty = json.dumps( data, sort_keys=True, indent=2)
          #sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\meteoblue\\mb_pvpro_" + self.sNow + ".json"
@@ -186,10 +184,8 @@ class CMbSolarForecast:
          f.write( sPretty)
          f.close()
 
-
          modelrun = data['metadata']['modelrun_utc']
          modelrun_upd = data['metadata']['modelrun_updatetime_utc']
-
 
          # Metadaten der Abfrage speichern
          cur = self.mdb.cursor()
