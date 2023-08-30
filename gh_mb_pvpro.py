@@ -234,7 +234,7 @@ class CMbSolarForecast:
             stmt = "insert into solar2023.t_prognose (stunde, " + sField + ") values(CONVERT('{0}',datetime), {1}) ON DUPLICATE KEY UPDATE " + sField + "={1}" 
             stmt = stmt.format(sStunde, dkWh)
             print(stmt)
-            cur.execute( stmt,values)
+            cur.execute( stmt)
            
       except Exception as e:
          self.Error2Log(f'Fehler in HolePrognose(): {e}')
