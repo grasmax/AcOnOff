@@ -73,7 +73,8 @@ class CMbSolarForecast:
 
    ###### vScriptAbbruch(self) ##############################################################################
    def vScriptAbbruch(self):
-   #Script beenden und aufräumen
+      print(f'ScriptAbbruch: prüfe log Datei')
+      #Script beenden und aufräumen
       self.Error2Log('Abbruch mit mdb-close')
       self.mdb.close()
       self.mdbLog.close()
