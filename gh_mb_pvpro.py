@@ -173,7 +173,7 @@ class CMbSolarForecast:
 #         f.close()
          api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + sPwd + "&lat=" + self.sLati + "&lon=" + self.sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(self.iNeigung) + "&kwp=" + self.skWPeak + "&facing=" + str(self.iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
          response = requests.get(api_url)
-         if response.status_code != 200 :
+         if response.status_code == requests.codes.ok :
             data = response.json()
          else :
             logging.error(f'Fehler in http request(): Status code: {response.status_code}, URL: {api_url}')
