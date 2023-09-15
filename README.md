@@ -17,7 +17,7 @@ Verbrauchswerte werden mit dem Zähler EM540 erfasst.
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
 * gh_schaltschema.pdf - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
 
-Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11
+Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11 und https://github.com/grasmax/s1/issues/6.
 
 Alle Scripte werden auf diesem Controller ausgeführt:
 * Raspberry Pi CM4IO Board
