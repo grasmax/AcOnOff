@@ -1,4 +1,4 @@
-#   Ziel: Nachladen der Solar-Puffer-Batterien in Abhängigkeit vom Batterie-State of Charge (SOC, Batterieladezustand),
+#   Ziel:    Nachladen oder Ausgleichen der Solar-Puffer-Batterien in Abhängigkeit vom Batterie-State of Charge (SOC, Batterieladezustand),
 #            der Solarprognose sowie dem prognostizierten Verbrauch einschließlich der Anlage selbst
 #            durch Ein- und Ausschalten der Versorgung des MultiplusII-Chargers mit Stadtstrom an AC-IN
 #
@@ -10,20 +10,22 @@
 #             - Kapa vor der Abschaltung mit oder ohne Solarunterstützung auf 100% bringen
 #             - Umsetzung: in Planung: Brownouts abfragen und in Tabelle eintragen, Versuchen, bis zum Beginn die SOC-Lücke bis 100% zu füllen
 #
-#             Unterscheiden: Nachladen(bis 90%) / Ausgleichsladen (ausreichend lange 100%, bis alle Batterien und -Zellen ausgeglichen sind)
+#             Nachladen/Ausgleichen
+#             Unterscheiden: Nachladen(bis 90%) von Ausgleichsladen: ausreichend lange 100%, bis alle Batterien und -Zellen ausgeglichen sind
 #
 #             Im Normalfall:
-#             - Für den lt. Prognose zu erwartender Solar-Ertrag muss Kapa in der Batterie freigehalten werden.
-#             - Ausgleichs- und Nachladen nur dann, wenn laut Solar-Prognose nicht mehr als 0,1kWh/h zu erwarten sind.
-#             - Wenn das Ausgleichsladen begonnen hat, wird aber keine Rücksicht auf den eventuell zu erwartenden Solarertrag genommen.
-#             - Das Nachladen wird aber abgebrochen, wenn Solarertrag zu erwarten ist.
-#             - Der SOC wird beim Nachladen zwischen 21 und 85 Prozent gehalten.
-#             - Wenn der SOC unter 20% fällt, sichert die Generatorregel im CerboGX das Einschalten des LAdestroms.
-#             - Die Anzahl der Ein- und Ausschaltvorgänge soll minimiert werden, um die Schütze zu schonen.
-#             - Das Nachladen soll im Idealfall nur nachts stattfinden, wenn nur die Grundlast (Kühlung, Heizung, Fritzbox) gebraucht wird.
-#             - Die Prognose soll mit den historischen Verbrauchs-Werten rechnen, die im Tagesprofil gespeichert sind.
-#             - In Planung: Das Tagesprofil soll Monate und oder Jahreszeiten unterscheiden können.
-#             - Ablauf einer Berechnung:
+#             Für den lt. Prognose zu erwartender Solar-Ertrag muss Kapa in der Batterie freigehalten werden.
+#             Ausgleichs- und Nachladen nur dann, wenn laut Solar-Prognose nicht mehr als 0,1kWh/h zu erwarten sind.
+#             Wenn das Ausgleichsladen begonnen hat, wird aber keine Rücksicht auf den eventuell zu erwartenden Solarertrag genommen.
+#             Das Nachladen wird aber abgebrochen, wenn Solarertrag zu erwarten ist.
+#             Der SOC wird beim Nachladen zwischen 22 und 85 Prozent gehalten.
+#             (Wenn der SOC unter 20% fällt, sichert die Generatorregel im Victron CerboGX-Steuergerät das Einschalten des Ladestroms.)
+#             Die Anzahl der Ein- und Ausschaltvorgänge soll minimiert werden, um die Schütze zu schonen.
+#             Das Nachladen soll im Idealfall nur nachts stattfinden, wenn nur die Grundlast (Kühlung, Heizung, Fritzbox) gebraucht wird.
+#             Die Prognose soll mit den historischen Verbrauchs-Werten rechnen, die im Tagesprofil (Tabelle t_tagesprofil) gespeichert sind.
+#             (In Planung: Das Tagesprofil soll Monate und oder Jahreszeiten unterscheiden können. Dafür fehlen weitere Schlüsselspalten)
+#
+#             Ablauf einer Berechnung:
 #                 + Prüfen, ob Jetzt in Stunde mit Solarertrag:
 #                 +    Ja: Nachladen nur dann einschalten, wenn die untere SOC-Grenze in der nächsten Stunde unterschritten würde
 #                 +    Nein: 
@@ -50,22 +52,23 @@
 #        - liest, füllt und aktualisiert stündlich die Tabelle t_tagesprofil; darin sind für jede Stunde der Durchschnittsverbrauch gespeichert
 #        - berechnet aus t_prognose, t_tagesprofil und t_victdbus_stunde, ob und wie lange die Batterien geladen werden sollen 
 #        - schreibt in die Tabellen t_charge_state und t_charge_ticket
-#       In Planung:
-#       - SchalteGpio() (auf dem Master-Raspi) schaltet ein Relais1 auf dem Raspi-Relayboard 
-#       - Relais1 schaltet 12VDC durch zu einem Stromstoßschalter. Der Stromstoßschalter schaltet 48VDC durch zum Klemmmenblock 3 im Verteilerkasten Solar
-#         Dadurch schaltet der Schütz im Verteilerkasten Solar 230VAC durch zu AC-IN des MultiplusII.
-#         Dadurch schaltet der MultiplussII das Ladegerät ein und versorgt alle an AC-Out1 angeschlossenen Verbraucher mit Stadtstrom.
-#       - Der Schaltzustand des Stromstoßschalters wird erfasst mit einem KM12-Sensor, der seinerseits im eingeschalteten Zustand 3VDC zu einem GPIO-Pin schaltet, das
+#  
+#       - SchalteGpio() schaltet ein Relais1 auf dem Raspi-Relayboard 
+#       - Relais 1 schaltet 12 VDC durch zu einem Stromstoßschalter. 
+#         Der Stromstoßschalter schaltet 48VDC durch zum Klemmmenblock 3 im Verteilerkasten Solar
+#         Dadurch schaltet der Schütz im Verteilerkasten Solar 230 VAC durch zu AC-IN des MultiplusII.
+#         Dadurch schaltet der MultiplusII das Ladegerät ein und versorgt alle an AC-Out1 angeschlossenen Verbraucher mit Stadtstrom.
+#       - Der Schaltzustand des Stromstoßschalters wird erfasst mit einem KM12-Sensor, der seinerseits im eingeschalteten Zustand 3 VDC zu einem GPIO-Pin schaltet, das
 #         von HoleUndTesteGpioStatus() überwacht wird.
 #
 #        Das ursprüngliche Konzept sah ein weiteres Script vor, dass das GPIO-Pins schalten sollte und über Tickets von hier aus getriggert werden sollte.
 #        Dabei ging ich davon aus, dass das GPIO-Pin solange auf high gehalten werden muss, wie der Leistungsschütz eingeschaltet sein soll.
 #        Dafür hätte das Script für die Dauer des Ladevorgangs laufen müssen. Und das Relais hätte 48VDC schalten müssen, es ist aber nur für 30 VDC zugelassen.
-#        Das aktuelle Konzept sieht deshalb einen zusätzlichen Stromstoßschalter vor, der über das Relais auf dem Raspi-Board mit 12VDC angesteuert wird.
-#        Dazu ist nur ein 0.2ms-Impuls nötig, das Relais wird geschont und das Script muss nicht dauerhaft laufen. 
-#        Das Schalten des GPIO-Pin 26 kann also hier gleich mit erledigt werden. (Pin 26 getestet in der Alarmanlage)
+#        Das aktuelle Konzept sieht deshalb einen zusätzlichen Stromstoßschalter vor, der über das Relais auf dem Raspi-Board mit 12 VDC angesteuert wird.
+#        Dazu ist nur ein 0.2 ms-Impuls nötig; das Relais wird geschont und das Script muss nicht dauerhaft laufen. 
+#        Das Schalten des GPIO-Pin 20 kann also hier gleich mit erledigt werden. (Pin 26 getestet in der Alarmanlage)
 #        An den Stromstoßschalter ist ein KM12-Modul angedockt, das den Schaltzustand anzeigt. 
-#        Dieser Schaltzustand wird über GPIO-Pin 22 abgefragt (mit 3,3V an Pin 22 und 23 schon an der Alarmanlage getestet)
+#        Dieser Schaltzustand wird über GPIO-Pin 22 abgefragt (mit 3,3 VDC an Pin 22 schon an der Alarmanlage getestet)
 #
 #     Diese Berechung wird stündlich ausgeführt:
 #          In welchem Zustand ist das Ladegerät?
@@ -99,7 +102,7 @@
 #           Mindestens 24 Datensätze für jeden Monat (im Idealfall für jeden Tag des Jahres, vernüftige Durchschnittswerte würden sehr lange dauern...)
 #       Das berechnete Profil für die Berechnung: für die nächsten 48 Stunden: 48 Datensätze, jeweils mit Durchschnittsverbrauch (Haus und Anlage), Solarprognose, SOC
 #
-#          Randbedingungen:
+#          Randbedingungen der Anlage:
 #             SOC: 100% entsprechen 200Ah (4*50Ah)
 #             in einer Stunde kann die Batteriekapa mit einem Ladestrom von 230VAC/9,5A (per Konfig und Kabel vorgegeben, entsprechen ca. 50VDC/40A, das sind 40Ah)
 #                 16.6.23: Ladestrom war im MPII auf 5A begrenzt...auf 20A erhöht, kommt auch an...         
@@ -108,116 +111,67 @@
 #             Durchschnittlicher Verbrauch in 24h: 4kWh = 40%
 #
 #          Umsetzung:
-#             stündlich prüfen
-#             aktuellen SOC betrachten
-#                SOC darf in der kommenden Stunde nicht unter 21% fallen
-#                nachts, wenn niemand auf Fehler reagieren kann: SOC darf zwischen 2200 und 0800 nicht unter 21% fallen
-#                nachts mit der 12h-Prognose rechnen, zwischen 9 und 17 mit den 6-3-1-Prognosen
+#             stündlich prüfen in Minute 55
+#             Beispiel: Start des SCripts um 8 Uhr 55 
+#               --> aktuelle Zählerstände werden dann für die nächste volle Stunde eingetragen, also 09:00
+#               --> als Schaltzeit wird auch die nächste volle Stunde angenommen
+#
+#             aktuellen SOC, Prognose-Ertrag und historischen Verbrauch betrachten
+#             damit den Verlauf für die nächsten 48 Stunden berechnen
+#             Laden einschalten, wenn der SOC in den nächsten 48 Stunden unter 22% fallen sollte --> Parallelverschiebung der Kurve nach oben
+#             Ausschalten, wenn die 48-Stunden Kurve nicht mehr unter 22% fällt oder mit Solarertrag gerechnet werden kann.
 #
 #          Beispielrechnung 0900:
 #             maximal möglicher Brutto-Solarertrag lt Prognose: 5kWh 
 #                   minus Eigenverbrauch der Anlage von 1kWh, bleiben: 4kWh
 #                   minus Sofortverbrauch im Haus von 1kWh, bleiben: 3kWh = 30% Netto-Solarertrag
-#             Fazit: 0900 darf der SOC nicht über 55% liegen
 #       
 #          Beispielrechnung 1700:
-#             maximal möglicher Brutto-Solarertrag lt Prognose für nächsten Tag: 5kWh 
-#                   minus Eigenverbrauch der Anlage von 1kWh, bleiben: 4kWh
-#                   minus Sofortverbrauch im Haus von 1kWh, bleiben: 3kWh = 30% Netto-Solarertrag
-#             Fazit: 0900 darf der SOC nicht über 55% liegen
 #             1700: SOC: 85%
 #             1700-0900: 16h / 2/3 vom Durchschnittsverbrauch des Hauses: 2,7kWh sind 27%
 #             Fazit: bis 0900 sinkt der SOC auf 58% 
 #
-#          Beispielrechnung 14.6.,1300: SOC: 66%, Prognose: 2,9kWh - 0,58 (Anlage)  - 0,7 (Haus) = ~1,6kWh = 16%
-#             Fazit: 1700 SOC: 66+16=82% --> 3% fehlen zwar --> nicht einschalten
+#          Beispielrechnung 14.6.,1300: 
+#              SOC: 66%, Prognose: 2,9kWh - 0,58 (Anlage)  - 0,7 (Haus) = ~1,6kWh = 16%
+#             Fazit: 1700 SOC: 66+16=82% 
 #
-#          Beispielrechnung 15.6.,1500: SOC: 63%, Ymppt=256kWh Prognose: 0,97kWh/Ist:0,88 - 0,3? (Anlage)  - 0,7 (Haus) = -0,1kWh = -1%
-#             Fazit: 1700 SOC: 63-1=62% --> es fehlen 23% bis Soll (85)
-#             1700-0900: 16h / 2/3 vom Durchschnittsverbrauch des Hauses: 2,7kWh sind 27%
-#             Annahme: bis 0900 sinkt der SOC auf 35% - wird knapp --> eigentlich kann sofort geladen werden
-#             Ist 16.6. 0900: 43% , war also zu pessimistisch
-#                   grau, keine Sonne, Prognose trotzdem 3kWh?? Batterien müssen geladen und ausgeglichen werden -->Paneele aus, MPII über Generator auf "Laden"
+#          Beispielrechnung 15.6.,1500: 
+#             SOC: 63%, Ymppt=256kWh Prognose: 0,97kWh/Ist:0,88 - 0,3? (Anlage)  - 0,7 (Haus) = -0,1kWh = -1%
+#             Fazit: 1700 SOC: 63-1=62% 
+
 #          Neue Durchschnittswerte
 #          Istwerte: Arbeitstag Homeoffice: 15.6. 0930-1630: 7h 1kWh Verbrauch 0,143kWh/h   SOC: 54-->65: +11%=1,1kWh Summe: 2,2kWh
 #                     Abend/Nacht Grundlast: 15.6. 1630-16.6.0613 13h45 1,8kWh Verbrauch  0,131 kWh/h
 #
-#  Ausführung des Scripts
-#     stündlich zur Minute 55
-#        Beispiel: Start um 8 Uhr 55 
-#           --> aktuelle Zählerstände werden dann für die nächste volle Stunde eingetragen, also 09:00
-#           --> als Schaltzeit wird auch die nächste volle Stunde angenommen
-#        als cronjob laufen lassen
+#  Ausführung der beiden Scripts (dieses und das für die Beschaffung der Prognose)
+#        als cronjob (des angemeldeten Users, nicht root!) laufen lassen
 #        http://www.raspberrypi-tutorials.de/software/cronjobs-auf-dem-raspberry-pi-erstelleneinrichten.html
-#        sudo crontab -e
-#        5 * * * * root /home/pi/mpIIAcOnOff.py
+#        crontab -e
+#
+#        # von 8-20 Uhr in Minute 50 das Prognose-Script ausfuehren
+#        50 8-20 * * * sh /mnt/wd2tb/script/meteoblue_forecast/mb_pvpro.sh
+#
+#        # stuendlich in Minute 55 das Schaltscript ausfuehren
+#        55 * * * * sh /mnt/wd2tb/script/mpIIaconoff/mpIIAcOnOff.sh
 #
 #
-# Erledigt, ins Handbuch zu übernehmen
-#    warum lädt der MPII nur mit 5A statt mit 40? Begrenzung, weil Generator? Nee, weil im MPII so eingestellt (egen Batterieeinzelladung...), aber nicht im Cerbo sichtbar!
-#
-#    warum funktioniert ssh über python nicht: Windows-Berechtigungsproblem bei system32\openssh Lösung: Verzeichnis nach e:\ verschoben
-#    wie kann man den mppt über modbus-service com.victronenergy.solarcharger abfragen? mit ssh-spy den instanzierten Servicenamen ermitteln (+ttyS7....)
-#    
-#    MPPT-gesamtertrag mit in die victron-Tabelle speichern
-#
-#    Wie lange muss der SOC bei 100% gehalten werden, damit alle Batterien/Zellen ausgeglichen sind? Eine Stunde scheint auszureichen
-#
-#    MPPT-Gesamtertrag ermitteln mit MQTT
-#     https://community.victronenergy.com/questions/63915/anyone-have-python-example-how-to-read-mqtt-values.html
-#    zweite getrennte DB-Verbindung/Transaktion für das Log
-#    Hilfsklasse für gpio unter Windows
-
-# Offene Punkte:
-#  bei Scriptabbruch Warn-Email verschicken
-#  wieso wird der Anlagenverbrauch negativ?
-
-#  raspi io-, cm4- und pci-Boards
-#     Stromkabel mit J19 oder J20 Stecker fehlt noch 
-#
-#  Victron/Gavazzi-Zähler
-#     erl. einbauen
-#     erl. mit Cerbo verbinden
-#     erl. Werte abfragen und in die DB-Speichern
-#     erl. in den Auswertungen berücksichtigen
-#
-#  raspi-ioboard mit cm4 in Betrieb nehmen
-#     rasp os lite installieren
-#     feste IP in der Fritzbox hinterlegen
-#     remotezugang installieren
-#     samba installieren
-#     sata karte mit 2TB-Platte in Betrieb nehmen
-#     ssh Schlüssel erstellen und im Cerbo hinterlegen
-#     mariadb installieren
-#        mariadb sichern
-#     python mit mariadb, gpio inst.
-#  relaisboard in Betriebnehmen und verdrahten
-#     pin26 - relais 1, schaltet 12VDC zum Stromstoßschalter
-#     pin22 - 3,3VDC verbinden mit KM12
-#  python-Scripte in Betrieb nehmen und testen
-#     als stündlichen Cronjob eintragen
-#
-#  bessere Passwortverschlüsselung?
 
 
-import os
 import base64
-import ctypes
 import datetime
 import subprocess
 import logging
 from logging.handlers import RotatingFileHandler
 import json
-from tokenize import Double
-from xmlrpc.client import DateTime
 import mariadb
 import time
 
 # ist unter Windows logischerweise nicht ausführbar (keine GPIO-Pins...)
-# import RPi.GPIO as GPIO 
-# für den Test unter windows liegt eine Hilfsklasse gleichen Namens in gpio.py:
-from gpioersatz import GPIO
-
+import RPi.GPIO as GPIO 
+# für den Test unter windows liegt eine Hilfsklasse gleichen Namens in gpioersatz.py:
+# from gpioersatz import GPIO
+# für den Relaistest stehen die beiden Scriptdateien gpiorelaytest*.py zur Verfügung
+# Die GPIO-IN-Pins können mit dem Script in gpiointest.py abgefragt werden
 
 ###### CPrognoseStunde { ##############################################################################
 class CPrognoseStunde:
@@ -256,9 +210,10 @@ class CAcOnOff:
       print("Programmstart")
 
       # Konfiguration einlesen
-      logging.basicConfig(encoding='utf-8', level=logging.DEBUG,
+      logging.basicConfig(encoding='utf-8', level=logging.INFO,
+                          # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
                           style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
-                          handlers=[RotatingFileHandler('./mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
+                          handlers=[RotatingFileHandler('./log/mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
 
       self.tNow = datetime.datetime.now()
       tZaehler = self.tNow + datetime.timedelta(hours=1)
@@ -267,8 +222,10 @@ class CAcOnOff:
       self.sZaehlerStunde = self.sHour2Str(self.tZaehler) 
       self.tLeer = datetime.datetime(2022,1,1)
 
-      print(f'Jetzt: {self.tNow}, Zähler: {self.tZaehler}, Zählerstunde: {self.nZaehlerStunde}, Leer: {self.tLeer}')
-
+      sJetzt = f'Jetzt: {self.tNow}, Zähler: {self.tZaehler}, Zählerstunde: {self.nZaehlerStunde}, Leer: {self.tLeer}'
+      print( sJetzt)
+      logging.info( sJetzt)
+      print( 'logging ok')
 
       sCfgFile = "mpIIAcOnOff.cfg" # sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\mpIIAcOnOff.cfg"
       try:
@@ -302,7 +259,7 @@ class CAcOnOff:
          self.dMinSolarPrognoseStunde = Settings['Laden']['MinSolarPrognoseStunde']
 
          self.nAusgleichAlleNWochen = Settings['Laden']['AusgleichAlleNWochen']
-         self.dAbsorb100Dauer = float(Settings['Laden']['DauerAbsorbtion100'])
+         self.dAusgleichStunden = float(Settings['Laden']['AusgleichStundenAbsorbtion100'])
 
          self.nSocMin = Settings['Laden']['SocMin']
          self.nSocMax = Settings['Laden']['SocMax']
@@ -318,6 +275,7 @@ class CAcOnOff:
 
          self.SshCerboIP = Settings['Ssh']['CerboIP']
          self.SshCerboUser = Settings['Ssh']['CerboUser']
+         self.SshCmd = Settings['Ssh']['SshCmd']
          self.SshDbusTempFile = Settings['Ssh']['DbusTempFile']
          self.SshDbusSolarServiceName  = Settings['Ssh']['DbusSolarServiceName']
          self.SshDbusEmServiceName  = Settings['Ssh']['DbusEmServiceName']
@@ -415,16 +373,15 @@ class CAcOnOff:
    ###### __Record2Log(self, eTyp, eLadeart, sText) ##############################################################################
    def __Record2Log(self, eTyp, eLadeart, sText):
    # Logeintrag in die Datenbank schreiben, bei Fehler auch in die Log-Datei
-   #$$ stext auf 250 begrenzen, wenn länger -->Fehlermeldung und Text in die Logdatei
       cur = self.mdbLog.cursor()
-      sStmt = f'insert into db1.t_charge_log (tLog, eTyp, eLadeart,sText) values (sysdate(), "{eTyp}","{eLadeart}","{sText}")'
+      sStmt = f'insert into solar2023.t_charge_log (tLog, eTyp, eLadeart,sText) values (sysdate(), "{eTyp}","{eLadeart}","{sText}")'
       try:
          cur.execute( sStmt)
          self.mdbLog.commit()
          print(f'Logeintrag: {eTyp}: {eLadeart}: {sText}')
 
       except Exception as e:
-         logging.error(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in mariadb.DB1.t_charge_log: {e}')
+         logging.error(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in t_charge_log: {e}')
          self.vScriptAbbruch()
 
 
@@ -482,16 +439,20 @@ class CAcOnOff:
  #      oder gleich so mit dem per ssh-keygen erzeugten Schlüsseldatei leno2venus: 
  #              C:\Users\Rainer>ssh -i leno2venus root@192.168.2.38 "dbus -y com.victronenergy.system /Dc/Battery/Soc GetValue"
  #               59
- #        dafür wurde auf dem Client (leno2018) ein ssh-Schlüsselpaar erzeugt und der öffentliche Schlüssel aus der pub-Datei 
+ #        Windows-PC: dafür wurde auf dem Client (leno2018) ein ssh-Schlüsselpaar erzeugt und der öffentliche Schlüssel aus der pub-Datei 
  #           auf dem Cerbo in  root@einstein:~# nano ~/.ssh/authorized_keys  eingetragen
  #           habe dann noch ein Schlüsselpaar l2v erzeugt und mitssh-add registriert. Danach konnte ich ssh auch ohne -i ausführen.
+ #       Solar-Raspi: Schlüsselpaar mit ssh-keygen auf dem Raspi erzeugt
+ #           Schlüssel aus \\192.168.2.28\SambaHome\admin2\sshkey_solarraspi.pub eingetragen im Cerbo mit
+ #              root@einstein:~# nano ~/.ssh/authorized_keys
+            
    def HoleDbusWertVomCerbo(self, sService, sPath): 
           
       try:
          sDbusCmd = f'dbus -y {sService} {sPath} GetValue'
 
-         #das Verzeichnis openssh musste von system32 nach e': kopiert werden, weil python/ssh darauf nicht zufgreifen können
-         sSshCmd = f'e:\\dev_priv\\openssh\\ssh {self.SshCerboUser}@{self.SshCerboIP} "{sDbusCmd}">{self.SshDbusTempFile}'
+         #Windows: das Verzeichnis openssh musste von system32 nach e': kopiert werden, weil python/ssh darauf nicht zufgreifen können
+         sSshCmd = f'{self.SshCmd} {self.SshCerboUser}@{self.SshCerboIP} "{sDbusCmd}">{self.SshDbusTempFile}'
 
          subprocess.Popen( sSshCmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
          try:
@@ -532,12 +493,12 @@ class CAcOnOff:
    ###### HoleLadeartAusDb(self) ##############################################################################
    def HoleLadeartAusDb(self):
       try:
-         sStmt = f'select eLadeart, tLetzterAusgleich, nAnzStunden from db1.t_charge_state'
+         sStmt = f'select eLadeart, tLetzterAusgleich, nAnzStunden from solar2023.t_charge_state'
          cur = self.mdb.cursor()
          cur.execute( sStmt)
          rec = cur.fetchone()
          if rec == None:
-            self.Error2Log(f'Fehler bei select eLadeart from mariadb.DB1.t_charge_state: rec == None')
+            self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: rec == None')
             self.vScriptAbbruch()
 
          sArt = rec[0].replace("\r\n","",1)
@@ -559,7 +520,7 @@ class CAcOnOff:
          self.Info2Log(f'Ladeart: {self.sLadeart}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler bei select eLadeart from mariadb.DB1.t_charge_state: {e}')
+         self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: {e}')
          self.vScriptAbbruch()
 
 
@@ -577,7 +538,7 @@ class CAcOnOff:
          self.ls.dStadtDiff  = 0.0
 
          cur = self.mdb.cursor()
-         sStmt = f"select max(tStunde) from db1.t_victdbus_stunde WHERE tStunde <> STR_TO_DATE('{self.sZaehlerStunde}', '%Y-%m-%d %H')"
+         sStmt = f"select max(tStunde) from solar2023.t_victdbus_stunde WHERE tStunde <> STR_TO_DATE('{self.sZaehlerStunde}', '%Y-%m-%d %H')"
          cur.execute( sStmt)
          rec = cur.fetchone()
          if rec == None:
@@ -587,11 +548,11 @@ class CAcOnOff:
 
          sLetzteStunde = self.sHour2Str(self.ls.tStunde)
          
-         sStmt = f"select dSocAbs, dErtragAbs, dEmL1Abs, dEmL2Abs from db1.t_victdbus_stunde where tStunde = STR_TO_DATE('{sLetzteStunde}', '%Y-%m-%d %H')"
+         sStmt = f"select dSocAbs, dErtragAbs, dEmL1Abs, dEmL2Abs from solar2023.t_victdbus_stunde where tStunde = STR_TO_DATE('{sLetzteStunde}', '%Y-%m-%d %H')"
          cur.execute( sStmt)
          rec = cur.fetchone()
          if rec == None:
-            self.Error2Log(f'Fehler beim Lesen der Zählerstände der letzten Stunde ausdb1.t_victdbus_stunde: rec==none')
+            self.Error2Log(f'Fehler beim Lesen der Zählerstände der letzten Stunde aus t_victdbus_stunde: rec==none')
             return
 
          self.ls.dSoc      = rec[0] 
@@ -616,7 +577,7 @@ class CAcOnOff:
    ###### BerechneLadungsEnde(self, dSocSoll) ##############################################################################
    def BerechneLadungsEnde(self, dSocSoll):
       if self.nMaxChargeCurr == 0.0:
-         self.Error2Log(f'Fehler bei select eLadeart from mariadb.DB1.t_charge_state: {e}')
+         self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: {e}')
          self.vScriptAbbruch()
 
       # Berechnung in Abhängigkeit von Anzahl Batterien, Ah der Batterien, SOC, Ladestrom und Eigenverbrauch
@@ -645,7 +606,7 @@ class CAcOnOff:
       sVon = self.sHour2Str(self.tEin)
       sBis = self.sHour2Str(tSollEnde)
 
-      sStmt = f"select stunde,p1,p3,p6,p12,p24 from db1.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
+      sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
                      order by stunde"
 
       cur = self.mdb.cursor()
@@ -721,7 +682,7 @@ class CAcOnOff:
          sVonStunde = self.sHour2Str(self.tEin)
          sBisStunde = self.sHour2Str(self.tAus)
 
-         sStmt = "insert into db1.t_charge_ticket (eSchaltart, tAnlDat, tSoll, sGrund, tSollAus)\
+         sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll, sGrund, tSollAus)\
                    values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'), '{3}', STR_TO_DATE('{2}', '%Y-%m-%d %H') )"
          sStmt = sStmt.format( self.sSchaltart_ein,  sVonStunde, sBisStunde, self.sLadeart)
 
@@ -732,7 +693,7 @@ class CAcOnOff:
          self.Info2Log(f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert in mariadb.DB1.t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}')
+         self.Error2Log(f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}')
          self.vScriptAbbruch()
 
 
@@ -746,7 +707,7 @@ class CAcOnOff:
 
          sAusStunde = self.sHour2Str(self.tZaehler)
 
-         sStmt = "insert into db1.t_charge_ticket (eSchaltart, tAnlDat, tSoll )\
+         sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll )\
                    values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'))"
          sStmt = sStmt.format( self.sSchaltart_aus,  sAusStunde)
 
@@ -760,7 +721,7 @@ class CAcOnOff:
             self.tLetzterAusgleich = self.tZaehler
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert in mariadb.DB1.t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}')
+         self.Error2Log(f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}')
          self.vScriptAbbruch()
 
 
@@ -768,7 +729,7 @@ class CAcOnOff:
    def TagesprofilEinlesen(self, a24h):
          
          try:
-            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from db1.t_tagesprofil'
+            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from solar2023.t_tagesprofil'
             cur = self.mdb.cursor()
             cur.execute( sStmt)
 
@@ -791,7 +752,7 @@ class CAcOnOff:
    def TagesprofilAktualisieren(self):
 
          try:
-            sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from db1.t_tagesprofil where nStunde = {self.nZaehlerStunde}'
+            sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {self.nZaehlerStunde}'
 
             cur = self.mdb.cursor()
             cur.execute( sStmt)
@@ -831,7 +792,7 @@ class CAcOnOff:
             if dEigen < dKwhAnlageMax:
                dKwhAnlageMax = round(dEigen,2) # neuer Maxwert
 
-            sStmt = f'update db1.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {self.nZaehlerStunde}'
+            sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {self.nZaehlerStunde}'
             cur.execute( sStmt)
             self.mdb.commit()
             cur.close()
@@ -847,7 +808,7 @@ class CAcOnOff:
             sVon = self.sHour2Str(self.tEin)
             tEnd = self.tEin + datetime.timedelta(hours=48)
             sBis = self.sHour2Str(tEnd)
-            sStmt = f"select stunde,p1,p3,p6,p12,p24 from db1.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
+            sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
                         order by stunde"
 
             cur = self.mdb.cursor()
@@ -913,16 +874,16 @@ class CAcOnOff:
          dMaxSocUnterschreitung = 0.0
          for h in range( 48):
             dKapaDiff = self.a48h[h].dSolarPrognose - self.a48h[h].dVerbrauch
-            dSocDiff = dKapaDiff * dSoc100 / dKapa100
+            dSocDiff = round(dKapaDiff * dSoc100 / dKapa100, 2)
 
-            #$$ bei 89% beginnt Absorbtion, es gibt noch kein Modell für die Ladekurve in diesem Bereich
-            dSocPrognose = min( float(self.nSocAbsorbtion), dSocPrognose + dSocDiff)
+ #$$ bei 89% beginnt Absorbtion, es gibt noch kein Modell für die Ladekurve in diesem Bereich
+            dSocPrognose = min( float(self.nSocAbsorbtion), round(dSocPrognose + dSocDiff, 2))
 
             self.a48h[h].dSoc = dSocPrognose
             print(f'a48h[{h}]: {self.a48h[h].tStunde}:  {self.a48h[h].dSoc}')
 
             if( self.a48h[h].dSoc < float(self.nSocMin)):
-               dMaxSocUnterschreitung = float(self.nSocMin) - self.a48h[h].dSoc
+               dMaxSocUnterschreitung = round(float(self.nSocMin) - self.a48h[h].dSoc, 2)
 
       except Exception as e:
          self.Error2Log(f'Fehler in BerechneMaximaleSocUnterschreitung(): {e}')
@@ -936,7 +897,8 @@ class CAcOnOff:
       print(f'bIstLadenNoetigUndMoeglich')
 
       if self.dSoc < float(self.nSocMin):
-         return True # Nachladen nötig, wenn dann noch Sonne dazukommt, wird das toleriert
+         self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
+         return True 
 
       # Einschalten zur nächsten vollen Stunde
       self.tEin = datetime.datetime(self.tNow.year,self.tNow.month,self.tNow.day,self.tNow.hour+1,0)
@@ -970,17 +932,18 @@ class CAcOnOff:
 
 
    ###### bIstAusgleichenAusschaltenMoeglich(self) ##############################################################################
-   # Möglich, wenn SOC mindestens <dAbsorb100Dauer> Stunden bei 100% war
+   # Möglich, wenn SOC mindestens <dAusgleichStunden> Stunden bei 100% war
    def bIstAusgleichenAusschaltenMoeglich(self):
       print("bIstAusgleichenAusschaltenMoeglich")
 
       try:
-         cur = self.mdb.cursor()
-         tVon = self.tZaehler - datetime.timedelta(hours=self.dAbsorb100Dauer)
+         tVon = self.tZaehler - datetime.timedelta(hours=self.dAusgleichStunden)
          sVon = self.sHour2Str(tVon)
          sBis = self.sHour2Str(self.tZaehler)
 
-         sStmt = f"SELECT MIN(s.dSocAbs) FROM db1.t_victdbus_stunde s WHERE s.tStunde BETWEEN STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')"
+         sStmt = f"SELECT MIN(s.dSocAbs) FROM solar2023.t_victdbus_stunde s WHERE s.tStunde BETWEEN STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')"
+
+         cur = self.mdb.cursor()
          cur.execute( sStmt)
          rec = cur.fetchone()
          dSocMin = rec[0]
@@ -1020,7 +983,7 @@ class CAcOnOff:
    def SchreibeDbusWerteInMariaDb(self):
       
       try:
-         sStmt = "insert into db1.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs)\
+         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs)\
                    values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}  ) \
                    ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8}"
          sStmt = sStmt.format(self.sZaehlerStunde, self.dSoc, self.ls.dSocDiff, self.dErtragAbs, self.ls.dErtragDiff, self.ls.dEmL1Diff, self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs)
@@ -1033,7 +996,7 @@ class CAcOnOff:
          self.Info2Log(f'Dbus-Werte in DB aktualisiert: {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert inmariadb.DB1.t_victdbus_stunde mit {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}: {e}')
+         self.Error2Log(f'Fehler beim insert in t_victdbus_stunde mit {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}: {e}')
          self.vScriptAbbruch()
          
 
@@ -1044,7 +1007,7 @@ class CAcOnOff:
       try:
          if bMitInit:
             GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.iGpioPinSensorAc, GPIO.IN)
+            GPIO.setup(self.iGpioPinSensorAc, GPIO.IN, GPIO.PUD_DOWN) # den internen pulldown-Widerstand aktivieren
       
          iStat1 = GPIO.input(self.iGpioPinSensorAc); time.sleep(0.3) 
          iStat2 = GPIO.input(self.iGpioPinSensorAc); time.sleep(0.3) 
@@ -1094,8 +1057,9 @@ class CAcOnOff:
       # ist unter Windows nicht ausführbar!
       try:
          GPIO.setmode(GPIO.BCM)
-         GPIO.setup(self.iGpioPinSensorAc, GPIO.IN) # hier nur das Sensor-Pin initialisieren, das Actor-Pin wird unten erledigt
-
+         # hier nur das Sensor-Pin initialisieren, das Actor-Pin wird unten erledigt
+         GPIO.setup(self.iGpioPinSensorAc, GPIO.IN, GPIO.PUD_DOWN) # den internen pulldown-Widerstand aktivieren) 
+         
          v = 1
          bErledigt = False
          sPinStat = self.sGpioPinUnklar
@@ -1175,7 +1139,7 @@ class CAcOnOff:
       try:
          sLetzterAusgleich = self.sHour2Str( self.tLetzterAusgleich)
 
-         sStmt = f"update db1.t_charge_state set eLadeart='{self.sLadeart}', tAendDat=sysdate() , nAnzStunden={self.nAnzStunden},\
+         sStmt = f"update solar2023.t_charge_state set eLadeart='{self.sLadeart}', tAendDat=sysdate() , nAnzStunden={self.nAnzStunden},\
                                                 tLetzterAusgleich=STR_TO_DATE('{sLetzterAusgleich}', '%Y-%m-%d %H')"
 
          cur = self.mdb.cursor()
@@ -1183,7 +1147,7 @@ class CAcOnOff:
          cur.close()
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim update von mariadb.DB1.t_charge_state mit ({self.sLadeart}): {e}')
+         self.Error2Log(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
          self.vScriptAbbruch()
 
 

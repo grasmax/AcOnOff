@@ -7,6 +7,7 @@ import sys
 import mariadb
 import logging
 from logging.handlers import RotatingFileHandler
+import time
 
 
 ###### CMbSolarForecast  { ##############################################################################
@@ -16,7 +17,8 @@ class CMbSolarForecast:
    def __init__(self):
       print("Programmstart")
 
-      logging.basicConfig(encoding='utf-8', level=logging.DEBUG,
+      logging.basicConfig(encoding='utf-8', level=logging.INFO, # absteigend: DEBUG, INFO, WARNING,ERROR, CRITICAL
+                          # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
                           style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
                           handlers=[RotatingFileHandler('./mb_pvpro.log', maxBytes=100000, backupCount=10)],)
 

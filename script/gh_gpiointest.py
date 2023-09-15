@@ -17,7 +17,7 @@ while bTest == 1:
          print('Ende')
          bTest = 0
          break;
-
+      print(f'Pin {p}')
       if GPIO.input(p) == 1:
          print(f'Pin {p} is high')
       time.sleep(0.2) 

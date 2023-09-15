@@ -1,17 +1,12 @@
+SELECT * FROM t_abfragen ORDER BY tAbfrage DESC;
+SELECT * FROM t_prognose ORDER BY Stunde ;
+SELECT * FROM t_prognose_log ORDER BY tLog ;
 
-SELECT * FROM db1.t_charge_log ORDER BY 1;
-SELECT * FROM db1.t_charge_state;
+SELECT * FROM t_charge_log ORDER BY tLog;
+SELECT * FROM t_charge_state;
+SELECT * FROM t_charge_ticket;
+SELECT * FROM t_tagesprofil;
+SELECT * FROM t_victdbus_stunde ORDER BY tstunde;
 
-
-select stunde,p1,p3,p6,p12,p24 from db1.t_prognose where Stunde BETWEEN  STR_TO_DATE('2023-06-22 10', '%Y-%m-%d %H') AND STR_TO_DATE('2023-06-22 17', '%Y-%m-%d %H')
-
-SELECT * FROM db1.t_prognose ORDER BY 1;
-SELECT max(p24),max(p12),max(p6),max(p3),max(p1) FROM db1.t_prognose ORDER BY 1;
-
-SELECT * FROM db1.t_charge_state;
-SELECT * FROM db1.t_charge_ticket ORDER BY tAnldat;
-SELECT * FROM t_victdbus_stunde ORDER BY 1;
-
-SELECT * from db1.v_eval_h ORDER BY Stunde;
-SELECT * from db1.v_portal_yield_kwh_h;
-
+SELECT * from v_eval_h_victrondata ORDER BY Stunde;
+SELECT * from v_eval_h_localdata ORDER BY Stunde;
