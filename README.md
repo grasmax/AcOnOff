@@ -12,7 +12,7 @@ Verbrauchswerte werden mit dem Zähler EM540 erfasst.
 * gh_mariadb_solarprognose.sql - Datenbank-Abfragen
 * gh_gpioersatz.py - GPIO-Hilfsklasse für den Test von gh_mpIIAcOnOff.py unter Windows
 * gh_mb_pvpro.py - Abfrage der Solarprognose und Speichern der Ergebnisse in die Datenbank
-* mb_pvpro_2023-07-06-14-17.json - Ergebnis der Abfrage der Solarprognose im json-Format
+* mb_pvpro_2023-07-06-14-17.json - Ergebnis einer Abfrage der Solarprognose im json-Format
 * gh_mpIIAcOnOff.py - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
 * gh_schaltschema.pdf - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
