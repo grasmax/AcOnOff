@@ -1,6 +1,8 @@
 
+# Achtung! Alle Stunden-Angaben verstehen sich als das Ende der Stunde. Im Sinne von: bis dahin gab es Solarertrag. Oder: bis dahin wurden kWh verbraucht.
 
--- für mpIIaconoff.py
+
+# für mpIIaconoff.py
 
 
 CREATE TABLE `t_charge_log` (
@@ -45,7 +47,7 @@ ENGINE=InnoDB
 ;
 
 CREATE TABLE `t_tagesprofil` (
-	`nStunde` INT NOT NULL COMMENT '0..23',
+	`nStunde` INT NOT NULL COMMENT '1..24. 1..bis 01:00 wurde etwas verbraucht',
 	`dKwhHaus` DOUBLE NULL DEFAULT NULL COMMENT 'Durchschnitts-Verbrauch der Verbraucher im Solarteil der Hausinstallation in kWh',
 	`dKwhAnlage` DOUBLE NULL DEFAULT NULL COMMENT 'Durchschnittlicher Eigenverbrauch der Anlage in kWh',
 	`dKwhHausMin` DOUBLE NULL DEFAULT NULL COMMENT 'Minimaler der Verbraucher im Solarteil der Hausinstallation in kWh',
@@ -59,30 +61,30 @@ COLLATE='utf8mb4_general_ci'
 ;
 delete from t_tagesprofil;
 SELECT * FROM t_tagesprofil;
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (0, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (1, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (2, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (3, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (4, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (5, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (6, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (7, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (8, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (9, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (10, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (11, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (12, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (13, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (14, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (15, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (16, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (17, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (18, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (19, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (20, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (21, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (22, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
-insert into t_tagesprofil (nStunde,	dKwhHaus,	dKwhAnlage,	dKwhHausMin,	dKwhHausMax,	dKwhAnlageMin,	dKwhAnlageMax)	VALUES (23, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (1, 0.1, 0.025, 0.1, 0.1, 0.025, 0.025);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (2, 0.1, 0.03, 0.1, 0.15, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (3, 0.1, 0.02, 0.1, 0.2, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (4, 0.1, 0.02, 0.1, 0.1, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (5, 0.1, 0.03, 0.1, 0.2, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (6, 0.1, 0.02, 0.1, 0.1, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (7, 0.1, 0.02, 0.1, 0.2, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (8, 0.1, 0.03, 0.1, 0.2, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (9, 0.1, 0.02, 0.1, 0.2, 0.01, -0.08);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (10, 0.1, 0.03, 0.1, 0.2, 0.025, -0.07);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (11, 0.1, 0.02, 0.1, 0.2, 0.01, -0.07);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (12, 0.1, 0.03, 0.1, 0.2, 0.025, -0.08);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (13, 0.1, 0.02, 0.1, 0.2, 0.025, -0.08);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (14, 0.1, 0.03, 0.1, 0.2, 0.01, -0.08);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (15, 0.03, 0.01, 0.1, 0.2, 0.01, -0.08);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (16, 0.1, 0.02, 0.1, 0.2, 0.01, -0.06);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (17, 0.11, 0.03, 0.1, 0.2, 0.01, -0.05);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (18, 0.12, 0.02, 0.1, 0.2, 0.01, -0.09);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (19, 0.1, 0.03, 0.1, 0.2, 0.01, 0.01);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (20, 0.12, 0.02, 0.1, 0.2, 0.01, -1.49);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (21, 0.05, 0.02, 0.1, 0.3, 0.01, -0.3);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (22, 0.1, 0.02, 0.1, 0.3, 0.025, 0);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (23, 0.1, 0.02, 0.1, 0.3, 0.025, -0.1);
+INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (24, 0.14, 0.03, 0.1, 0.3, 0.025, -0.1);
 SELECT * FROM t_tagesprofil;
 
 CREATE TABLE `t_charge_state` (
@@ -184,4 +186,6 @@ round(y.dErtrag - f.P12, 2) DeltaP12, round(y.dErtrag - f.P24, 2) DeltaP24,
 y.dSosAbs SOC
 from t_victdbus_stunde y, t_prognose f
 WHERE y.tStunde = f.Stunde  ;
+
+
 
