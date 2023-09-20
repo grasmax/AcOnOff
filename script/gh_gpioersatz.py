@@ -9,6 +9,8 @@ class GPIO:
    OUT = 'out'
    HIGH = 'hi'
    LOW = 'low'
+   PUD_DOWN = 1
+   pulldownstat = 0
 
    def __init__(self):
       print('GPIO-Hilfsklasse')
@@ -18,11 +20,12 @@ class GPIO:
       print (f'gpio-mode: {mode}')
 
    @staticmethod
-   def setup( pin, mode):
+   def setup( pin, mode, pulldown):
       if mode == GPIO.OUT:
          GPIO.pinstat = GPIO.HIGH
+         GPIO.pulldownstat = pulldown
       
-      print (f'gpio.setup ({pin}, {mode})')
+      print (f'gpio.setup ({pin}, {mode}, {pulldown})')
 
    @staticmethod
    def output( pin, ipinstat):
