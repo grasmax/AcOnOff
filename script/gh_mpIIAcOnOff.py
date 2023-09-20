@@ -29,7 +29,7 @@
 #                 + Prüfen, ob Jetzt in Stunde mit Solarertrag:
 #                 +    Ja: Nachladen nur dann einschalten, wenn die untere SOC-Grenze in der nächsten Stunde unterschritten würde
 #                 +    Nein: 
-#                 +        Array 48x3 anlegen für 48 Stunden, jeweils: Verbrauch (kWh), Solarertrag (kWh), SOC
+#                 +        Array {self.nAnzPrognoseStunden} x3 anlegen für {self.nAnzPrognoseStunden} Stunden, jeweils: Verbrauch (kWh), Solarertrag (kWh), SOC
 #                 +        Array füllen und die maximale Unterschreitung des minimalen SOC ermitteln
 #                 +           Achtung! der berechnete SOC geht bei viel Sonne über 100%! Das ist aber in der Praxis nicht so
 #                 +              ab 89% beginnt die Absorbtionsphase, deren Verlauf nicht beschrieben ist!
@@ -100,7 +100,7 @@
 #       Das Tagesprofil wird in der Tabelle t_tagesprofil gespeichert: 24 Datensätze, jeweils mit Haus: Durchschnittsverbrauch, Min, Max und Anlage: Durchschnittsverbrauch, Min, Max
 #           Durchschnittsverbrauch, Min und Max werden täglich aktualisiert.
 #           Mindestens 24 Datensätze für jeden Monat (im Idealfall für jeden Tag des Jahres, vernüftige Durchschnittswerte würden sehr lange dauern...)
-#       Das berechnete Profil für die Berechnung: für die nächsten 48 Stunden: 48 Datensätze, jeweils mit Durchschnittsverbrauch (Haus und Anlage), Solarprognose, SOC
+#       Das berechnete Profil für die Berechnung: für die nächsten {self.nAnzPrognoseStunden} Stunden: {self.nAnzPrognoseStunden} Datensätze, jeweils mit Durchschnittsverbrauch (Haus und Anlage), Solarprognose, SOC
 #
 #          Randbedingungen der Anlage:
 #             SOC: 100% entsprechen 200Ah (4*50Ah)
@@ -117,9 +117,9 @@
 #               --> als Schaltzeit wird auch die nächste volle Stunde angenommen
 #
 #             aktuellen SOC, Prognose-Ertrag und historischen Verbrauch betrachten
-#             damit den Verlauf für die nächsten 48 Stunden berechnen
-#             Laden einschalten, wenn der SOC in den nächsten 48 Stunden unter 22% fallen sollte --> Parallelverschiebung der Kurve nach oben
-#             Ausschalten, wenn die 48-Stunden Kurve nicht mehr unter 22% fällt oder mit Solarertrag gerechnet werden kann.
+#             damit den Verlauf für die nächsten {self.nAnzPrognoseStunden} Stunden berechnen
+#             Laden einschalten, wenn der SOC in den nächsten {self.nAnzPrognoseStunden} Stunden unter 22% fallen sollte --> Parallelverschiebung der Kurve nach oben
+#             Ausschalten, wenn die {self.nAnzPrognoseStunden}-Stunden Kurve nicht mehr unter 22% fällt oder mit Solarertrag gerechnet werden kann.
 #
 #          Beispielrechnung 0900:
 #             maximal möglicher Brutto-Solarertrag lt Prognose: 5kWh 
@@ -167,17 +167,17 @@ import mariadb
 import time
 
 # ist unter Windows logischerweise nicht ausführbar (keine GPIO-Pins...)
-import RPi.GPIO as GPIO 
+#import RPi.GPIO as GPIO 
 # für den Test unter windows liegt eine Hilfsklasse gleichen Namens in gpioersatz.py:
-# from gpioersatz import GPIO
+from gpioersatz import GPIO
 # für den Relaistest stehen die beiden Scriptdateien gpiorelaytest*.py zur Verfügung
 # Die GPIO-IN-Pins können mit dem Script in gpiointest.py abgefragt werden
 
 ###### CPrognoseStunde { ##############################################################################
 class CPrognoseStunde:
-   def __init__(self, tNow, Stunde):
+   def __init__(self, tStart, Stunde):
 
-      self.tStunde = datetime.datetime(tNow.year,tNow.month,  tNow.day, tNow.hour+1) + datetime.timedelta(hours=Stunde)
+      self.tStunde = datetime.datetime(tStart.year,tStart.month,  tStart.day, tStart.hour) + datetime.timedelta(hours=Stunde)
       self.dVerbrauch  = 0.0  # Summe der Verbrauchswerte aus Tabelle t_tagesprofil
       self.dSolarPrognose  = 0.0  # Wert aus Tabelle t_prognose
       self.dSoc = 0.0   # auf Basis des aktuellen SOC, der voraussichtlichen Verbrauchswerte und der Solarvorhersage berechneter Wert
@@ -219,7 +219,7 @@ class CAcOnOff:
       tZaehler = self.tNow + datetime.timedelta(hours=1)
       self.tZaehler = datetime.datetime( tZaehler.year, tZaehler.month, tZaehler.day, tZaehler.hour, 0)
       self.nZaehlerStunde = self.tZaehler.hour
-      self.sZaehlerStunde = self.sHour2Str(self.tZaehler) 
+      self.sZaehlerStunde = self.sDate2Str(self.tZaehler) 
       self.tLeer = datetime.datetime(2022,1,1)
 
       sJetzt = f'Jetzt: {self.tNow}, Zähler: {self.tZaehler}, Zählerstunde: {self.nZaehlerStunde}, Leer: {self.tLeer}'
@@ -256,6 +256,7 @@ class CAcOnOff:
 
          self.nVerbotVon = Settings['Laden']['VerbotVon']
          self.nVerbotBis = Settings['Laden']['VerbotBis']
+         self.nAnzPrognoseStunden = Settings['Laden']['AnzPrognoseStunden']
          self.dMinSolarPrognoseStunde = Settings['Laden']['MinSolarPrognoseStunde']
 
          self.nAusgleichAlleNWochen = Settings['Laden']['AusgleichAlleNWochen']
@@ -298,10 +299,14 @@ class CAcOnOff:
          quit()
 
       #berechnete Werte      
+
+      self.bMitHypoSocRechnen = False     # wenn die aktuellen Werte nicht per ssh/dbus aus dem Cerbo gelesen werden konnten, mit einem hyp. SOC weiterrechnen
       self.dSoc = 0.0               # aktueller SOC aus der Anlage, abgefragt per dbus
       self.dErtragAbs = 0.0         # aktueller Gesamt-Solarertrag, abgefragt per dbus
       self.dEmL1Abs = 0.0           # aktueller Zählerstand EM540/L1, abgefragt per dbus
       self.dEmL2Abs = 0.0           # aktueller Zählerstand EM540/L2, abgefragt per dbus
+
+      self.nAnzStunden = 0 # Basis für die Durchschnittsberechnung im Tagesprofil
 
       self.ls = CLetzteStunde()     # Soc, Ertrag, L1 und L2 der letzten Stunde aus t_victdbus_stunde
       
@@ -313,9 +318,8 @@ class CAcOnOff:
       self.tAus = self.tLeer
       self.tLetzterAusgleich = self.tLeer  # Zeitpunkt, wann der letzte Ausgleich abgeschlossen war
 
-      self.nAnzStunden = 0 # Basis für die Durchschnittsberechnung im Tagesprofil
-
-      self.a48h = [CPrognoseStunde(self.tNow, h) for h in range(48)]
+      self.nAnzPrognoseStunden += 1 # weil auf [0] nur der aktuelle SOC liegt
+      self.aProgStd = [CPrognoseStunde(self.tZaehler, h) for h in range(self.nAnzPrognoseStunden)]
 
 
    ###### VerbindeMitMariaDb(self) ##############################################################################
@@ -416,11 +420,16 @@ class CAcOnOff:
          return dSocDiff
 
 
-   ###### sHour2Str( self, t) ##############################################################################
+   ###### sDate2Str( self, t) ##############################################################################
    # DateTime bis einschließlich Stunde in DB-Update/STR_TO_DATE-kompatible Zeichenkette umwandeln
-   def sHour2Str( self, t):
+   def sDate2Str( self, t):
         return f'{t.year}-{t.month}-{t.day} {t.hour}'
      
+
+   def iGetHours( self, dau):
+      return (int)((dau.days * 86400 + dau.seconds) / 3600)
+
+
 
    ###### HoleDbusWertVomCerbo(self, sService, sPath) ##############################################################################
  #    :string sService: Name des Victron-dbus-Dienstes, ermittelt mit dbus-spy oder dbus -y
@@ -468,7 +477,7 @@ class CAcOnOff:
          sValue = sValue.replace("value =", "")
 
       except Exception as e:
-         self.Error2Log( f'Fehler beim Lesen SSH/DBUS: {e}')
+         self.Error2Log( f'Fehler beim Lesen SSH/DBUS: {sService} {sPath}: {e}')
          return ""
          
       self.Info2Log(f'SSH/DBUS: {sService} {sPath}: {sValue}')
@@ -476,18 +485,44 @@ class CAcOnOff:
 
 
    ###### HoleDbusWerteVomCerbo(self) ##############################################################################
+   # Werte aus der Anlage lesen, wenn das nicht möglich ist, die Prognose ab dem letzten bekannten SOC rechnen
    def HoleDbusWerteVomCerbo(self): 
-      self.dSoc = round(float(self.HoleDbusWertVomCerbo( "com.victronenergy.system", "/Dc/Battery/Soc")),2) 
-
-      #Gesamt-Solarertrag aus dem MPPT-Solarregler
-      self.dErtragAbs = round(float(self.HoleDbusWertVomCerbo( self.SshDbusSolarServiceName, "/Yield/System")),2)
       
-      #Gesamtverbrauch aller Verbraucher im Solarteil der Hausinstallation (ohne Eigenverbrauch der Anlage)
-      # gezählt wird alles, was aus dem Inverter kommt, egal ob aus der Batterie oder nur durchgeschleifter Stadtstrom beim Nachladen oder Ausgleichen
-      self.dEmL1Abs = round(float(self.HoleDbusWertVomCerbo( self.SshDbusEmServiceName, "/Ac/L1/Energy/Forward")),2)
+      try:
+         sSoc = self.HoleDbusWertVomCerbo( "com.victronenergy.system", "/Dc/Battery/Soc")
+         if len(sSoc) <= 0:
+            self.bMitHypoSocRechnen = True
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS - Prognose wird mit dem letzten bekannten Wert für SOC gerechnet.')
+         else:
+            self.dSoc = round(float(sSoc),2) 
 
-      # gezählt wird am MPII-AC-In, was an Stadtstrom reingeht, um die Batterie zu laden und während des Ladens alle Verbraucher im Solarteil der Hausinstallation zu versorgen
-      self.dEmL2Abs = round(float(self.HoleDbusWertVomCerbo( self.SshDbusEmServiceName, "/Ac/L2/Energy/Forward")),2)
+         #Gesamt-Solarertrag aus dem MPPT-Solarregler
+         sY = self.HoleDbusWertVomCerbo( self.SshDbusSolarServiceName, "/Yield/System")
+         if len(sY) <= 0:
+            self.bMitHypoSocRechnen = True
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS - Prognose wird mit dem letzten bekannten Wert für Ertrag gerechnet.')
+         else:
+            self.dErtragAbs = round(float(sY),2)
+      
+         #Gesamtverbrauch aller Verbraucher im Solarteil der Hausinstallation (ohne Eigenverbrauch der Anlage)
+         # gezählt wird alles, was aus dem Inverter kommt, egal ob aus der Batterie oder nur durchgeschleifter Stadtstrom beim Nachladen oder Ausgleichen
+         sL1 = self.HoleDbusWertVomCerbo( self.SshDbusEmServiceName, "/Ac/L1/Energy/Forward")
+         if len(sL1) <= 0:
+            self.bMitHypoSocRechnen = True
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS - Prognose wird mit dem letzten bekannten Wert für L1 gerechnet.')
+         else:
+            self.dEmL1Abs = round(float(sL1),2)
+
+         # gezählt wird am MPII-AC-In, was an Stadtstrom reingeht, um die Batterie zu laden und während des Ladens alle Verbraucher im Solarteil der Hausinstallation zu versorgen
+         sL2 = self.HoleDbusWertVomCerbo( self.SshDbusEmServiceName, "/Ac/L2/Energy/Forward")
+         if len(sL2) <= 0:
+            self.bMitHypoSocRechnen = True
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS - Prognose wird mit dem letzten bekannten Wert für L2 gerechnet.')
+         else:
+            self.dEmL2Abs = round(float(sL2),2)
+
+      except Exception as e:
+         self.Error2Log( f'Fehler in HoleDbusWerteVomCerbo(): {e}')
       
 
    ###### HoleLadeartAusDb(self) ##############################################################################
@@ -503,7 +538,7 @@ class CAcOnOff:
 
          sArt = rec[0].replace("\r\n","",1)
          self.tLetzterAusgleich = rec[1]
-         self.nAnzStunden = rec[2] + 1
+         self.nAnzStunden = rec[2]
 
          cur.close()
 
@@ -538,7 +573,7 @@ class CAcOnOff:
          self.ls.dStadtDiff  = 0.0
 
          cur = self.mdb.cursor()
-         sStmt = f"select max(tStunde) from solar2023.t_victdbus_stunde WHERE tStunde <> STR_TO_DATE('{self.sZaehlerStunde}', '%Y-%m-%d %H')"
+         sStmt = f"select max(tStunde) from solar2023.t_victdbus_stunde WHERE dSoc is not null and tStunde <> STR_TO_DATE('{self.sZaehlerStunde}', '%Y-%m-%d %H')"
          cur.execute( sStmt)
          rec = cur.fetchone()
          if rec == None:
@@ -546,7 +581,7 @@ class CAcOnOff:
          else: 
             self.ls.tStunde = rec[0]
 
-         sLetzteStunde = self.sHour2Str(self.ls.tStunde)
+         sLetzteStunde = self.sDate2Str(self.ls.tStunde)
          
          sStmt = f"select dSocAbs, dErtragAbs, dEmL1Abs, dEmL2Abs from solar2023.t_victdbus_stunde where tStunde = STR_TO_DATE('{sLetzteStunde}', '%Y-%m-%d %H')"
          cur.execute( sStmt)
@@ -563,7 +598,7 @@ class CAcOnOff:
 
          #wenn der letzte Datensatz nicht von der letzten Stunde stammt, dann den Durchschnitt der letzten Stunden annehmen
          tDiff = self.tZaehler - self.ls.tStunde
-         iStunden = (int)((tDiff.days * 86400 + tDiff.seconds) / 3600)
+         iStunden = self.iGetHours( tDiff)
 
          self.ls.dSocDiff = round( (self.dSoc - self.ls.dSoc) / iStunden, 2)           # positiv: Batterie wurde geladen, negativ: Batterie wurde entladen
          self.ls.dErtragDiff = round((self.dErtragAbs - self.ls.dErtrag) / iStunden, 2)
@@ -571,13 +606,13 @@ class CAcOnOff:
          self.ls.dEmL2Diff = round((self.dEmL2Abs - self.ls.dEmL2) / iStunden, 2)
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim Lesen der Zählerstände der letzten Stunde ausdb1.t_victdbus_stunde: {e}')
+         self.Error2Log(f'Fehler beim Lesen der Zählerstände der letzten Stunde aus t_victdbus_stunde: {e}')
 
 
    ###### BerechneLadungsEnde(self, dSocSoll) ##############################################################################
    def BerechneLadungsEnde(self, dSocSoll):
       if self.nMaxChargeCurr == 0.0:
-         self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: {e}')
+         self.Error2Log(f'Fehler in BerechneLadungsEnde(): self.nMaxChargeCurr == {self.nMaxChargeCurr}')
          self.vScriptAbbruch()
 
       # Berechnung in Abhängigkeit von Anzahl Batterien, Ah der Batterien, SOC, Ladestrom und Eigenverbrauch
@@ -603,8 +638,14 @@ class CAcOnOff:
       # von tEin bis tSollEnde prüfen, ob mit Solarertrag zu rechnen ist
       # dabei nicht mit den Verbotszeiten (self.nVerbotVon,self.nVerbotBis) arbeiten, sondern die Prognosetabelle abfragen
 
-      sVon = self.sHour2Str(self.tEin)
-      sBis = self.sHour2Str(tSollEnde)
+#$$ nur temp für Tests, um auch bei zu erwartendem Solarertrag das Nachladen und Ausgleichen testen zu können
+#      self.tAus = tSollEnde # keine Einschränkung für das Laden durch die Solarprognose
+#      self.Info2Log(f'Es darf geladen werden: Keine Einschränkung durch die Solarprognose')
+#      return True           # es darf geladen werden
+
+
+      sVon = self.sDate2Str(self.tEin)
+      sBis = self.sDate2Str(tSollEnde)
 
       sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
                      order by stunde"
@@ -651,6 +692,7 @@ class CAcOnOff:
 
    ###### bIstAusgleichenNoetigUndMoeglich(self) ##############################################################################
    def bIstAusgleichenNoetigUndMoeglich(self):
+
       print(f'bIstAusgleichenNoetigUndMoeglich')
       diff = self.tNow - self.tLetzterAusgleich 
       if diff.days < self.nAusgleichAlleNWochen * 7 :
@@ -679,8 +721,8 @@ class CAcOnOff:
       try:
          self.sLadeart = sLadeart
 
-         sVonStunde = self.sHour2Str(self.tEin)
-         sBisStunde = self.sHour2Str(self.tAus)
+         sVonStunde = self.sDate2Str(self.tEin)
+         sBisStunde = self.sDate2Str(self.tAus)
 
          sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll, sGrund, tSollAus)\
                    values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'), '{3}', STR_TO_DATE('{2}', '%Y-%m-%d %H') )"
@@ -705,7 +747,7 @@ class CAcOnOff:
       try:
          self.sLadeart = self.sLadeartAus
 
-         sAusStunde = self.sHour2Str(self.tZaehler)
+         sAusStunde = self.sDate2Str(self.tZaehler)
 
          sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll )\
                    values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'))"
@@ -729,7 +771,7 @@ class CAcOnOff:
    def TagesprofilEinlesen(self, a24h):
          
          try:
-            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from solar2023.t_tagesprofil'
+            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from solar2023.t_tagesprofil order by nStunde'
             cur = self.mdb.cursor()
             cur.execute( sStmt)
 
@@ -741,7 +783,7 @@ class CAcOnOff:
             while rec != None:
                a24h[t] = rec[1] + rec[2]
                rec = cur.fetchone()
-               t = t + 1
+               t += 1
             cur.close()
    
          except Exception as e:
@@ -752,15 +794,20 @@ class CAcOnOff:
    def TagesprofilAktualisieren(self):
 
          try:
+            if self.bMitHypoSocRechnen == True:
+               return # es gibt keine aktuellen Werte..
+
             sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {self.nZaehlerStunde}'
 
             cur = self.mdb.cursor()
             cur.execute( sStmt)
             rec = cur.fetchone()
 
+            nStundenNeu = self.nAnzStunden + 1
+
             # Haus-Verbrauchswerte können direkt vom EM540/L1 abgelesen werden:
             dKwhHaus = rec[0]
-            dKwhHaus = round(( (self.nAnzStunden  * dKwhHaus) + self.ls.dEmL1Diff ) / (self.nAnzStunden + 1),2) # neuer Durchschnitt
+            dKwhHaus = round(( (self.nAnzStunden  * dKwhHaus) + self.ls.dEmL1Diff ) / (nStundenNeu),2) # neuer Durchschnitt
 
             dKwhHausMin = rec[1]
             if self.ls.dEmL1Diff < dKwhHausMin and 0.0 < self.ls.dEmL1Diff:
@@ -782,7 +829,7 @@ class CAcOnOff:
 
             # dann erst neuen Durchschnitt und Min/Max neu berechnen
             dKwhAnlage = rec[3]
-            dKwhAnlage = round(( (self.nAnzStunden  * dKwhAnlage) + dEigen) / (self.nAnzStunden + 1),2) # neuer Durchschnitt
+            dKwhAnlage = round(( (self.nAnzStunden  * dKwhAnlage) + dEigen) / (nStundenNeu),2) # neuer Durchschnitt
 
             dKwhAnlageMin = rec[4]
             if dEigen < dKwhAnlageMin and 0.0 < dEigen:
@@ -791,6 +838,8 @@ class CAcOnOff:
             dKwhAnlageMax = rec[5]
             if dEigen < dKwhAnlageMax:
                dKwhAnlageMax = round(dEigen,2) # neuer Maxwert
+
+            self.nAnzStunden = nStundenNeu # wird in SchreibeStatusInMariaDb() nach t_charge_state gespeichert
 
             sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {self.nZaehlerStunde}'
             cur.execute( sStmt)
@@ -802,12 +851,12 @@ class CAcOnOff:
          
 
    ###### SolarprognoseEinlesen(self) ##############################################################################
-   def SolarprognoseEinlesen(self):
+   def SolarprognoseEinlesen(self, aXXh, tEin, iStunden):
 
          try:
-            sVon = self.sHour2Str(self.tEin)
-            tEnd = self.tEin + datetime.timedelta(hours=48)
-            sBis = self.sHour2Str(tEnd)
+            sVon = self.sDate2Str(tEin)
+            tEnd = tEin + datetime.timedelta(hours=iStunden)
+            sBis = self.sDate2Str(tEnd)
             sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
                         order by stunde"
 
@@ -820,17 +869,18 @@ class CAcOnOff:
 
             while rec != None:
                dProg = 0.0
-               for i in range(1,5+1):
+               for i in range(1,5+1): # rec ist 0-basiert, alle Prognosewerte durchgehen, von P1 bis P24, ersten, der ungleich 0 ist, nehmen
                   if rec[i] != None:
                      dProg = rec[i]
                      break  
-               tProgn = rec[0]
-               tDiff = rec[0] - self.tEin
-               iStunde = (int)((tDiff.days * 86400 + tDiff.seconds) / 3600)
 
-               if iStunde < 48:
-                  #print(f'Stunde: {iStunde}, Prognose: {dProg}')
-                  self.a48h[iStunde].dSolarPrognose = dProg
+               tProgn = rec[0]
+               tDiff = rec[0] - tEin
+               iStunde = self.iGetHours( tDiff)
+
+               if iStunde < iStunden:
+                  print(f'Stunde: {iStunde}: {tProgn}, Prognose: {dProg}')
+                  aXXh[iStunde].dSolarPrognose = dProg
 
                rec = cur.fetchone()
             cur.close()
@@ -842,51 +892,62 @@ class CAcOnOff:
          return False
 
 
-   ###### BerechneMaximaleSocUnterschreitung(self) ##############################################################################
-   def BerechneMaximaleSocUnterschreitung(self):
+   ###### BerechneMaximaleSocUnterschreitung(self, aXXh, tEin, iStunden) ##############################################################################
+   def BerechneMaximaleSocUnterschreitung(self, aXXh, tEin, iStunden):
+
       print('BerechneMaximaleSocUnterschreitung()')
 
       try:
-         self.SolarprognoseEinlesen()  # Solarprognose einlesen, direkt nach a48h
+         self.SolarprognoseEinlesen( aXXh, tEin, iStunden)  # Solarprognose einlesen, direkt nach aXXh
 
-         a24h = [0.0 for h in range(24)]
+         a24h = [0.0 for h in range(24)] # in a24h[0] steht, was bis 01:00 verbraucht wurde!
          self.TagesprofilEinlesen( a24h)
 
-         # Tagesprofil ins 48h-Profil übertragen
-         h48 = 0
-         for h in range( self.tEin.hour, 23+1):
-            #print(f'h48: {h48}, h: {h}, a24h[h]: {a24h[h]}')
-            self.a48h[h48].dVerbrauch = a24h[h]
-            h48 = h48 + 1
-         for h in range( 0, 23+1):
-            #print(f'h48: {h48}, h: {h}, a24h[h]: {a24h[h]}')
-            self.a48h[h48].dVerbrauch = a24h[h]
-            h48 = h48 + 1
-         for h in range( 0, self.tEin.hour):
-            #print(f'h48: {h48}, h: {h}, a24h[h]: {a24h[h]}')
-            self.a48h[h48].dVerbrauch = a24h[h]
-            h48 = h48 + 1
+         # Tagesprofil ins XXh-Profil übertragen
+         hStart = tEin.hour
+         hStopp = hStart + iStunden
+         hXX = 0
+         for h in range( hStart, hStopp):
+            hStunde = h % 24
+            if hStunde == 0:
+               hStunde = 24
+            iIdxStunde = hStunde - 1
+            print(f'h: {h}: hStunde: {hStunde}: hXX: {hXX}, a24h[{iIdxStunde}]: {a24h[iIdxStunde]}')
+            aXXh[hXX].dVerbrauch = a24h[iIdxStunde]
+            hXX += 1
+         
 
          # SOC-Prognose berechnen
          dKapa100 = self.nBattAnz * self.nBattKapa * self.nBattVolt / 1000 # Juni 2023: 4*50Ah*50V/1000 = 10kWh
          dSoc100 = 100.0
-         dSocPrognose = self.dSoc
+         dSocPrognose = aXXh[0].dSoc
          dMaxSocUnterschreitung = 0.0
-         for h in range( 48):
-            dKapaDiff = self.a48h[h].dSolarPrognose - self.a48h[h].dVerbrauch
+
+         # der erste Wert aXXh[0] entspricht dem aktuellen SOC
+         print(f'aXXh[{0}]: {aXXh[0].tStunde}:  {aXXh[0].dSoc}')
+         self.SchreibePrognoseWertInMariaDb( aXXh[0].tStunde, aXXh[0].dSoc)
+
+         for h in range( 1, iStunden):
+            dKapaDiff = aXXh[h].dSolarPrognose - aXXh[h].dVerbrauch
             dSocDiff = round(dKapaDiff * dSoc100 / dKapa100, 2)
 
  #$$ bei 89% beginnt Absorbtion, es gibt noch kein Modell für die Ladekurve in diesem Bereich
             dSocPrognose = min( float(self.nSocAbsorbtion), round(dSocPrognose + dSocDiff, 2))
 
-            self.a48h[h].dSoc = dSocPrognose
-            print(f'a48h[{h}]: {self.a48h[h].tStunde}:  {self.a48h[h].dSoc}')
+            aXXh[h].dSoc = dSocPrognose
+            print(f'aXXh[{h}]: {aXXh[h].tStunde}:  {aXXh[h].dSoc}')
+            self.SchreibePrognoseWertInMariaDb( aXXh[h].tStunde, aXXh[h].dSoc)
 
-            if( self.a48h[h].dSoc < float(self.nSocMin)):
-               dMaxSocUnterschreitung = round(float(self.nSocMin) - self.a48h[h].dSoc, 2)
+            if( aXXh[h].dSoc < float(self.nSocMin)):
+               dMaxSocUnterschreitung = round(float(self.nSocMin) - aXXh[h].dSoc, 2)
+
+
+         self.mdb.commit()
+         self.Info2Log(f'Prognose-Werte in DB eingetragen.')
+
 
       except Exception as e:
-         self.Error2Log(f'Fehler in BerechneMaximaleSocUnterschreitung(): {e}')
+         self.Error2Log(f'Fehler in BerechneMaximaleSocUnterschreitung( {tEin}, {aXXh[0].dSoc}): {e}')
          self.vScriptAbbruch()
 
       return dMaxSocUnterschreitung
@@ -903,19 +964,16 @@ class CAcOnOff:
       # Einschalten zur nächsten vollen Stunde
       self.tEin = datetime.datetime(self.tNow.year,self.tNow.month,self.tNow.day,self.tNow.hour+1,0)
 
-      # 48h-Vektor anlegen und füllen: 48 x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
+      # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
       # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
-      dSocMaxUnter = self.BerechneMaximaleSocUnterschreitung()
-
-      if self.a48h[0].dSoc < float(self.nSocMin):
-         self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten Stunde unterschritten würde: {self.a48h[0].dSoc} < {self.nSocMin}')
-         return True 
+      self.aProgStd[0].dSoc = self.dSoc
+      dSocMaxUnter = self.BerechneMaximaleSocUnterschreitung( self.aProgStd, self.tEin, self.nAnzPrognoseStunden) 
 
       if dSocMaxUnter == 0.0:
-         self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten 48 Stunden nicht unterschritten wird')
+         self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden nicht unterschritten wird')
          return False 
 
-      self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten 48 Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
+      self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
 
       # Wie lange wird das Nachladen dauern? 
       tSollEnde = self.BerechneLadungsEnde( dSocSoll=self.dSoc + dSocMaxUnter)
@@ -931,6 +989,7 @@ class CAcOnOff:
       return False
 
 
+
    ###### bIstAusgleichenAusschaltenMoeglich(self) ##############################################################################
    # Möglich, wenn SOC mindestens <dAusgleichStunden> Stunden bei 100% war
    def bIstAusgleichenAusschaltenMoeglich(self):
@@ -938,10 +997,11 @@ class CAcOnOff:
 
       try:
          tVon = self.tZaehler - datetime.timedelta(hours=self.dAusgleichStunden)
-         sVon = self.sHour2Str(tVon)
-         sBis = self.sHour2Str(self.tZaehler)
+         sVon = self.sDate2Str(tVon)
+         sBis = self.sDate2Str(self.tZaehler)
 
-         sStmt = f"SELECT MIN(s.dSocAbs) FROM solar2023.t_victdbus_stunde s WHERE s.tStunde BETWEEN STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')"
+         sStmt = f"SELECT MIN(s.dSocAbs) FROM solar2023.t_victdbus_stunde s WHERE s.tStunde BETWEEN STR_TO_DATE('{sVon}', '%Y-%m-%d %H') \
+                     AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')"
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
@@ -983,6 +1043,9 @@ class CAcOnOff:
    def SchreibeDbusWerteInMariaDb(self):
       
       try:
+         if self.bMitHypoSocRechnen == True:
+            return # es gibt keine aktuellen Werte...
+         
          sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs)\
                    values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}  ) \
                    ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8}"
@@ -997,6 +1060,24 @@ class CAcOnOff:
 
       except Exception as e:
          self.Error2Log(f'Fehler beim insert in t_victdbus_stunde mit {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}: {e}')
+         self.vScriptAbbruch()
+
+   ###### SchreibePrognoseWertInMariaDb(self, tStunde, dSoc) ##############################################################################
+   def SchreibePrognoseWertInMariaDb(self, tStunde, dSocPrognose):
+      
+      try:
+         sStunde = self.sDate2Str(tStunde)
+         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocPrognose)\
+                   values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}  ) \
+                   ON DUPLICATE KEY UPDATE  dSocPrognose={1}"
+         sStmt = sStmt.format( sStunde, dSocPrognose)
+
+         cur = self.mdb.cursor()
+         cur.execute( sStmt)
+         cur.close()
+   
+      except Exception as e:
+         self.Error2Log(f'Fehler beim Prognose-insert in t_victdbus_stunde mit {sStunde}, {dSocPrognose}: {e}')
          self.vScriptAbbruch()
          
 
@@ -1111,33 +1192,55 @@ class CAcOnOff:
          self.Error2Log(f'Fehler in SchalteGpio: Unbekannte Ladeart: {self.sLadeart}:  {e}')
          self.vScriptAbbruch()
 
+   ###### BerechneHypoSoc(self) ##############################################################################
+   # Wenn keine Verbindung via ssh/dbus zum Cerbo besteht, kann der aktuelle SOC nicht ermittelt werden.
+   # Hier wird deshalb ein hyp. SOC auf Basis des letzten bekannten SOC und der Solar- und Verbrauchswerte berechnet,
+   # mit dem die Funktionen dann weiterrechnen können, um ein/auschalten zu können
+   def BerechneHypoSoc(self):
+      dSoc = self.ls.dSoc #letzter bekannter SOC wurde in HoleLetzteStundeAusDb() gelesen
+      tStunde = self.ls.tStunde
+
+      # Matrix anlegen für den Zeitraum LetzteBekannteStunde bis jetzt
+      iStunden = self.iGetHours( self.tZaehler - tStunde)
+      iStunden += 1 # weil auf [0] nur der aktuelle SOC liegt
+      aXXh = [CPrognoseStunde(tStunde, h) for h in range(iStunden)]
+      aXXh[0].dSoc = dSoc
+      self.BerechneMaximaleSocUnterschreitung( aXXh, tStunde, iStunden ) # Funktion mit nutzen, Unterschreitung ignorieren
+
+      #letzter Wert in aXXh ist der SOC, der für die aktuelle Stunde berechnet wurde
+      self.dSoc = aXXh[iStunden-1].dSoc
+      print(f'Hypo. (berechneter) SOC um {aXXh[iStunden-1].tStunde}: {self.dSoc}')
+
 
    ###### BerechneEinAus(self) ##############################################################################
    def BerechneEinAus(self):
 
-      if ac.sLadeart == ac.sLadeartAus:
-         if ac.bIstAusgleichenNoetigUndMoeglich():           
-            ac.LadenEinschalten( self.sLadeartAusgleichen )
-         else:
-            if ac.bIstLadenNoetigUndMoeglich():
-               ac.LadenEinschalten( self.sLadeartNachladen )
+      if self.bMitHypoSocRechnen == True:
+         self.BerechneHypoSoc() # korrigiert self.dSoc, alle folgenden Funktionen rechnen mit diesem SOC weiter
 
-      elif ac.sLadeart == ac.sLadeartAusgleichen:    
-         if ac.bIstAusgleichenAusschaltenMoeglich():
-            ac.LadenAusschalten(self.sLadeartAusgleichen)
+      if self.sLadeart == ac.sLadeartAus:
+         if self.bIstAusgleichenNoetigUndMoeglich():           
+            self.LadenEinschalten( self.sLadeartAusgleichen )
+         else:
+            if self.bIstLadenNoetigUndMoeglich():
+               self.LadenEinschalten( self.sLadeartNachladen )
+
+      elif self.sLadeart == self.sLadeartAusgleichen:    
+         if self.bIstAusgleichenAusschaltenMoeglich():
+            self.LadenAusschalten(self.sLadeartAusgleichen)
           
-      elif ac.sLadeart == ac.sLadeartNachladen:    
-         if ac.bIstLadenAusschaltenMoeglichOderNoetig():
-            ac.LadenAusschalten(self.sLadeartNachladen)
+      elif self.sLadeart == self.sLadeartNachladen:    
+         if self.bIstLadenAusschaltenMoeglichOderNoetig():
+            self.LadenAusschalten(self.sLadeartNachladen)
 
       else:
-           self.Error2Log(f'Fehler: Unbekannte Ladeart: {ac.sLadeart}')
+           self.Error2Log(f'Fehler: Unbekannte Ladeart: {self.sLadeart}')
 
    ###### SchreibeStatusInMariaDb(self) ##############################################################################
    def SchreibeStatusInMariaDb(self):
 
       try:
-         sLetzterAusgleich = self.sHour2Str( self.tLetzterAusgleich)
+         sLetzterAusgleich = self.sDate2Str( self.tLetzterAusgleich)
 
          sStmt = f"update solar2023.t_charge_state set eLadeart='{self.sLadeart}', tAendDat=sysdate() , nAnzStunden={self.nAnzStunden},\
                                                 tLetzterAusgleich=STR_TO_DATE('{sLetzterAusgleich}', '%Y-%m-%d %H')"
@@ -1157,7 +1260,7 @@ ac = CAcOnOff()                    # Konfigdatei lesen
 
 ac.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
 
-ac.HoleDbusWerteVomCerbo()                # Werte aus der Anlage lesen   
+ac.HoleDbusWerteVomCerbo()                # Werte aus der Anlage lesen, wenn das nicht möglich ist, die Prognose ab dem letzten bekannten SOC rechnen  
 ac.HoleLadeartAusDb()                     # In welchem Zustand ist das Ladegerät?
 ac.HoleLetzteStundeAusDb()                # Zählerständer der letzten Stunde für Differenzermittlung lesen
 ac.TagesprofilAktualisieren()             # aktuelle Zählerwerte in die passende Stunde des Tagesprofil schreiben, hat eigenes Commit
