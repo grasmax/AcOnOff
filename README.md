@@ -1,3 +1,5 @@
+Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11 und https://github.com/grasmax/s1/issues/6.
+
 Hier werden Scriptdateien vorgestellt für die Benutzung in einer Photovoltaik-Insel.
 
 Diese Scriptdateien sollen auf einem _Raspberry Pi_ ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
@@ -17,8 +19,6 @@ Verbrauchswerte werden mit dem Zähler _EM540_ erfasst.
 * gh_mpIIAcOnOff.py - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
 * gh_schaltschema.pdf - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
-
-Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11 und https://github.com/grasmax/s1/issues/6.
 
 Alle Scripte werden auf diesem Controller ausgeführt:
 * Raspberry Pi CM4IO Board
