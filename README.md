@@ -1,13 +1,13 @@
 Hier werden Scriptdateien vorgestellt für die Benutzung in einer Photovoltaik-Insel.
 
-Diese Scriptdateien sollen auf einem __Raspberry Pi__ ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
+Diese Scriptdateien sollen auf einem _Raspberry Pi_ ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
 ([Schaltschema](https://github.com/grasmax/AcOnOff/blob/main/doc/gh_schaltschema.pdf)).
 
-Die Entwicklung ist noch nicht abgeschlossen, Tests finden unter Windows 10 und Raspberry Pi OS statt.<br> Da GPIO unter Windows nicht zur Verfügung steht, wird die Funktionalität beim Test unter Windows durch eine Hilfsklasse simuliert.
+Die Entwicklung ist noch nicht abgeschlossen, Tests finden unter _Windows 10_ und _Raspberry Pi OS_ statt.<br> Da _GPIO_ unter _Windows_ nicht zur Verfügung steht, wird die Funktionalität beim Test unter _Windows_ durch eine Hilfsklasse simuliert.
 
-Das Laden der Batterie erfolgt in Abhängigkeit von der Solarprognose, die von [meteoblue](https://www.meteoblue.com) zur Verfügung gestellt wird.
-In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über Victron ssh/dbus ermittelt werden.
-Verbrauchswerte werden mit dem Zähler EM540 erfasst.
+Das Laden der Batterie erfolgt in Abhängigkeit von der Solarprognose, die von [_meteoblue_](https://www.meteoblue.com) zur Verfügung gestellt wird.
+In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über _Victron_ ssh/dbus ermittelt werden.
+Verbrauchswerte werden mit dem Zähler _EM540_ erfasst.
 
 * gh_solarprognose.sql - Script zum Anlegen des Schemas für die MariaDB-Datenbank
 * gh_mariadb_solarprognose.sql - Datenbank-Abfragen
@@ -27,5 +27,5 @@ Alle Scripte werden auf diesem Controller ausgeführt:
 * IO CREST JMB582 2 Port SATA III PCI-e 3.0 x1 Non-RAID Controller Karte Jmicro Chipsatz SI-PEX40148 (https://github.com/geerlingguy/raspberry-pi-pcie-devices/issues/64)
 * 2TB WD20EFZX
   
-Die Inbetriebnahme des Controllers ist beschrieben in https://github.com/grasmax/AcOnOff/blob/main/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf
+Die Inbetriebnahme des Controllers [hier](https://github.com/grasmax/AcOnOff/blob/main/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
 
