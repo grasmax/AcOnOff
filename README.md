@@ -1,4 +1,4 @@
-Anlass für die Entwicklung: https://github.com/grasmax/s1/issues/11 und https://github.com/grasmax/s1/issues/6.
+Anlass für die Entwicklung waren Mängel, die beim Test einer Photovoltaik-Inselanlage aufgefallen sind: [Nachladen der Speicher ohne Solarprognose](https://github.com/grasmax/s1/issues/11) und [SOC-Unterschiede bei den Speicherbatterien](https://github.com/grasmax/s1/issues/6).
 
 Hier werden Scriptdateien vorgestellt für die Benutzung in einer Photovoltaik-Insel.
 
