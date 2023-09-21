@@ -218,7 +218,7 @@ class CAcOnOff:
       self.tNow = datetime.datetime.now()
       tZaehler = self.tNow + datetime.timedelta(hours=1)
       self.tZaehler = datetime.datetime( tZaehler.year, tZaehler.month, tZaehler.day, tZaehler.hour, 0)
-      self.nZaehlerStunde = self.tZaehler.hour
+      self.nZaehlerStunde = self.tZaehler.hour # 00:00 hat Zählerstunde 0, muss vor Zugriff auf t_tagesprofil auf 24 gesetzt werden
       self.sZaehlerStunde = self.sDate2Str(self.tZaehler) 
       self.tLeer = datetime.datetime(2022,1,1)
 
@@ -797,7 +797,11 @@ class CAcOnOff:
             if self.bMitHypoSocRechnen == True:
                return # es gibt keine aktuellen Werte..
 
-            sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {self.nZaehlerStunde}'
+            nZStunde = self.nZaehlerStunde;
+            if nZStunde == 0:
+               nZStunde = 24  # t_tagesprofil-Stundenindex läuft von 1 bis 24
+
+            sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {nZStunde}'
 
             cur = self.mdb.cursor()
             cur.execute( sStmt)
@@ -841,7 +845,7 @@ class CAcOnOff:
 
             self.nAnzStunden = nStundenNeu # wird in SchreibeStatusInMariaDb() nach t_charge_state gespeichert
 
-            sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {self.nZaehlerStunde}'
+            sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {nZStunde}'
             cur.execute( sStmt)
             self.mdb.commit()
             cur.close()
@@ -925,7 +929,8 @@ class CAcOnOff:
 
          # der erste Wert aXXh[0] entspricht dem aktuellen SOC
          print(f'aXXh[{0}]: {aXXh[0].tStunde}:  {aXXh[0].dSoc}')
-         self.SchreibePrognoseWertInMariaDb( aXXh[0].tStunde, aXXh[0].dSoc)
+         # aXXh[0] nicht wegnschreiben! Denn auf  aXXh[0] steht der aktuelle SOC!
+         # self.SchreibePrognoseWertInMariaDb( aXXh[0].tStunde, aXXh[0].dSoc)
 
          for h in range( 1, iStunden):
             dKapaDiff = aXXh[h].dSolarPrognose - aXXh[h].dVerbrauch
