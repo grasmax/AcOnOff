@@ -1,6 +1,6 @@
 Hier werden Scriptdateien vorgestellt für die Benutzung in einer Photovoltaik-Insel.
 
-Diese Scriptdateien sollen auf einem Raspberry Pi ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
+Diese Scriptdateien sollen auf einem __Raspberry Pi__ ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
 ([Schaltschema](https://github.com/grasmax/AcOnOff/blob/main/doc/gh_schaltschema.pdf)).
 
 Die Entwicklung ist noch nicht abgeschlossen, Tests finden unter Windows 10 und Raspberry Pi OS statt.<br> Da GPIO unter Windows nicht zur Verfügung steht, wird die Funktionalität beim Test unter Windows durch eine Hilfsklasse simuliert.
