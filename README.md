@@ -1,6 +1,6 @@
 Anlass für die Entwicklung waren Mängel, die beim Test einer Photovoltaik-Inselanlage aufgefallen sind: [Nachladen der Speicher ohne Solarprognose](https://github.com/grasmax/s1/issues/11) und [SOC-Unterschiede bei den Speicherbatterien](https://github.com/grasmax/s1/issues/6).
 
-Hier werden Scriptdateien vorgestellt für die Benutzung in einer Photovoltaik-Insel.
+Hier werden Scriptdateien vorgestellt, mit denen diese Mängel behoben werden.
 
 Diese Scriptdateien sollen auf einem _Raspberry Pi_ ausgeführt werden und die Stromversorgung<br> für das Ausgleichen und Nachladen der Speicherbatterien ein- und ausschalten
 ([Schaltschema](https://github.com/grasmax/AcOnOff/blob/main/doc/gh_schaltschema.pdf)).
