@@ -801,7 +801,7 @@ class CAcOnOff:
             if nZStunde == 0:
                nZStunde = 24  # t_tagesprofil-Stundenindex läuft von 1 bis 24
 
-            sStmt = f'select dKwhHaus,dKwhHausMin,dKwhHausMax, dKwhAnlage,dKwhAnlageMin,dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {nZStunde}'
+            sStmt = f'select dKwhHaus, dKwhHausMin, dKwhHausMax, dKwhAnlage, dKwhAnlageMin, dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {nZStunde}'
 
             cur = self.mdb.cursor()
             cur.execute( sStmt)
@@ -809,39 +809,60 @@ class CAcOnOff:
 
             nStundenNeu = self.nAnzStunden + 1
 
-            # Haus-Verbrauchswerte können direkt vom EM540/L1 abgelesen werden:
             dKwhHaus = rec[0]
-            dKwhHaus = round(( (self.nAnzStunden  * dKwhHaus) + self.ls.dEmL1Diff ) / (nStundenNeu),2) # neuer Durchschnitt
-
             dKwhHausMin = rec[1]
-            if self.ls.dEmL1Diff < dKwhHausMin and 0.0 < self.ls.dEmL1Diff:
-               dKwhHausMin = round(self.ls.dEmL1Diff,2) # neuer Minwert
-
             dKwhHausMax = rec[2]
+
+            dKwhAnlage = rec[3]
+            dKwhAnlageMin = rec[4]
+            dKwhAnlageMax = rec[5]
+
+            # Durchschnitt des Hausverbrauchs neu berechnen:
+            dKwhHaus = round(( (self.nAnzStunden  * dKwhHaus) + self.ls.dEmL1Diff ) / (nStundenNeu),2) # neuer Durchschnitt
+            if 0.0 < self.ls.dEmL1Diff and self.ls.dEmL1Diff < dKwhHausMin:
+               dKwhHausMin = round(self.ls.dEmL1Diff,2) # neuer Minwert
             if self.ls.dEmL1Diff > dKwhHausMax:
                dKwhHausMax = round(self.ls.dEmL1Diff,2) # neuer Maxwert
 
+
             # Verbrauchswerte der Anlage müssen erst  berechnet werden:
-            # V1 kein Stadtstrom, reiner Wechselrichterbetrieb:   Anlagenverbrauch = Solarertrag - ((+)Hausverbrauch(L1) + (+/-)Batterie)
-            # V2 Stadtstrom:                                      Anlagenverbrauch = ( Stadtstrom(L2) + Solarertrag ) - ( (+)Hausverbrauch(L1) + (+)Batterie )
             # Fazit: es genügt eine Formel: 
-            #                                                     Anlagenverbrauch = ( Stadtstrom(L2) + Solarertrag ) - ( (+)Hausverbrauch(L1) + (+/-)Batterie )
+
             # Batterie-kWh muss aus SOC abgeleitet werden: 100% == 10kWh
-            dKapaDiff = self.dSoc2Kwh(self.ls.dSocDiff)
+            dBatt = self.dSoc2Kwh(self.ls.dSocDiff) # größer oder kleiner 0
+            dStadt = self.ls.dEmL2Diff    # 0 oder größer 0
+            dErtrag = self.ls.dErtragDiff # 0 oder größer 0
+            dHaus = self.ls.dEmL1Diff     # immer größer 0 (Router, Heizung, ...)
+            dAnlage = 0.0
 
-            dEigen = (self.ls.dEmL2Diff + self.ls.dErtragDiff) - (self.ls.dEmL1Diff +  dKapaDiff)
+            #  if 0.0 < dStadt: # es wurde nachgeladen oder ausgeglichen:
+            #     dAnlage = (dStadt + dErtrag) - (dBatt + dHaus)
+            
+            #  else: # Wechselrichterbetrieb, ggf  mit Solarunterstützung:
 
-            # dann erst neuen Durchschnitt und Min/Max neu berechnen
-            dKwhAnlage = rec[3]
-            dKwhAnlage = round(( (self.nAnzStunden  * dKwhAnlage) + dEigen) / (nStundenNeu),2) # neuer Durchschnitt
+            #     if 0.0 < dErtrag: # Solarertrag
 
-            dKwhAnlageMin = rec[4]
-            if dEigen < dKwhAnlageMin and 0.0 < dEigen:
-               dKwhAnlageMin = round(dEigen,2) # neuer Minwert
+            #        if dBatt > 0.0: # Batterien wurden aus Solarüberschuss geladen, der nicht im Haus verbraucht werden konnte
+            #           dAnlage = (0.0 + dErtrag) - (dBatt + dHaus)
 
-            dKwhAnlageMax = rec[5]
-            if dEigen < dKwhAnlageMax:
-               dKwhAnlageMax = round(dEigen,2) # neuer Maxwert
+            #        elif dBatt < 0.0:  # Solarertrag reicht nicht aus, das Haus zu versorgen, Batterien wurden entladen
+            #           dAnlage = (0.0 + dErtrag) - (dBatt + dHaus)
+            #           #Beispiel:          1kWh     -1kWh      1,7kWh = 0,3kWh
+                 
+            #     else: # kein Solarertrag
+            #           dAnlage = (0.0 + 0.0) - (dBatt + dHaus)
+            #           #Beispiel:              -1kWh    0,7kWh = 0,3kWh
+
+            # Fazit: es genügt eine Formel: 
+            dAnlage = (dStadt + dErtrag) - (dBatt + dHaus)
+
+            dKwhAnlageNeu = round(( (self.nAnzStunden  * dKwhAnlage) + dAnlage) / (nStundenNeu),2) # neuer Durchschnitt
+
+            if 0.0 < dAnlage and dAnlage < dKwhAnlageMin:
+               dKwhAnlageMin = round( dAnlage, 2) # neuer Minwert
+
+            if dKwhAnlageMax < dAnlage:
+               dKwhAnlageMax = round( dAnlage, 2) # neuer Maxwert
 
             self.nAnzStunden = nStundenNeu # wird in SchreibeStatusInMariaDb() nach t_charge_state gespeichert
 
