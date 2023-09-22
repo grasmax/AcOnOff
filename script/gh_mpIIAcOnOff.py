@@ -215,7 +215,12 @@ class CAcOnOff:
                           style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
                           handlers=[RotatingFileHandler('./log/mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
 
+      
       self.tNow = datetime.datetime.now()
+      # Debughilfe: 
+      # self.tNow = datetime.datetime( 2023,9,21,23, 55)
+
+
       tZaehler = self.tNow + datetime.timedelta(hours=1)
       self.tZaehler = datetime.datetime( tZaehler.year, tZaehler.month, tZaehler.day, tZaehler.hour, 0)
       self.nZaehlerStunde = self.tZaehler.hour # 00:00 hat Zählerstunde 0, muss vor Zugriff auf t_tagesprofil auf 24 gesetzt werden
@@ -988,7 +993,7 @@ class CAcOnOff:
          return True 
 
       # Einschalten zur nächsten vollen Stunde
-      self.tEin = datetime.datetime(self.tNow.year,self.tNow.month,self.tNow.day,self.tNow.hour+1,0)
+      self.tEin = self.tZaehler
 
       # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
       # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
