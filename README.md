@@ -11,6 +11,7 @@ Das Laden der Batterie erfolgt in Abhängigkeit von der Solarprognose, die von [
 In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über _Victron_ ssh/dbus ermittelt werden.
 Verbrauchswerte werden mit dem Zähler _EM540_ erfasst.
 
+```
 * gh_solarprognose.sql - Script zum Anlegen des Schemas für die MariaDB-Datenbank
 * gh_mariadb_solarprognose.sql - Datenbank-Abfragen
 * gh_gpioersatz.py - GPIO-Hilfsklasse für den Test von gh_mpIIAcOnOff.py unter Windows
@@ -19,6 +20,7 @@ Verbrauchswerte werden mit dem Zähler _EM540_ erfasst.
 * [gh_mpIIAcOnOff.py](https://github.com/grasmax/AcOnOff/blob/main/script/gh_mpIIAcOnOff.py) - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
 * gh_schaltschema.pdf - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
+```
 
 Alle Scripte werden auf diesem Controller ausgeführt:
 * Raspberry Pi CM4IO Board
