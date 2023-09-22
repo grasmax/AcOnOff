@@ -9,7 +9,7 @@ Die Entwicklung ist noch nicht abgeschlossen, Tests finden unter _Windows 10_ un
 
 Das Laden der Batterie erfolgt in Abhängigkeit von der Solarprognose, die von [_meteoblue_](https://www.meteoblue.com) zur Verfügung gestellt wird.
 In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über _Victron_ ssh/dbus ermittelt werden.
-Verbrauchswerte werden mit dem Zähler _EM540_ erfasst.
+Verbrauchswerte werden mit dem Zähler [_EM540_](https://www.gavazziautomation.com/images/PIM/DATASHEET/DEU/EM540_DS_DEU.pdf) erfasst.
 
 * gh_solarprognose.sql - Script zum Anlegen des Schemas für die MariaDB-Datenbank
 * gh_mariadb_solarprognose.sql - Datenbank-Abfragen
