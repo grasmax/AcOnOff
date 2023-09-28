@@ -27,5 +27,5 @@ Alle Scripte werden auf diesem Controller ausgeführt:
 * [IO CREST JMB582](https://github.com/geerlingguy/raspberry-pi-pcie-devices/issues/64) 2 Port SATA III PCI-e 3.0 x1 Non-RAID Controller Karte Jmicro Chipsatz SI-PEX40148 
 * 2TB WD20EFZX
   
-Die Inbetriebnahme des Controllers ist [hier](https://github.com/grasmax/AcOnOff/blob/main/doc/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
+Der Aufbau und die Inbetriebnahme des Controllers ist [hier](https://github.com/grasmax/AcOnOff/blob/main/doc/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
 
