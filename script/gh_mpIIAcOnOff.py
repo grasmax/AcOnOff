@@ -215,11 +215,9 @@ class CAcOnOff:
                           style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
                           handlers=[RotatingFileHandler('./log/mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
 
-      
       self.tNow = datetime.datetime.now()
       # Debughilfe: 
-      # self.tNow = datetime.datetime( 2023,9,21,23, 55)
-
+      #self.tNow = datetime.datetime( 2023,9,21,23, 55)
 
       tZaehler = self.tNow + datetime.timedelta(hours=1)
       self.tZaehler = datetime.datetime( tZaehler.year, tZaehler.month, tZaehler.day, tZaehler.hour, 0)
@@ -326,6 +324,12 @@ class CAcOnOff:
       self.nAnzPrognoseStunden += 1 # weil auf [0] nur der aktuelle SOC liegt
       self.aProgStd = [CPrognoseStunde(self.tZaehler, h) for h in range(self.nAnzPrognoseStunden)]
 
+   
+   ###### VerbindeMitMariaDb(self) ##############################################################################
+   # Wichtige Werte ins Log schreiben
+   def WerteInsLog(self):
+      self.Info2Log(f'Untere SOC-Grenze: {self.nSocMin}%')
+
 
    ###### VerbindeMitMariaDb(self) ##############################################################################
    # 2 Verbindungen zur MariaDB aufbauen
@@ -427,8 +431,11 @@ class CAcOnOff:
 
    ###### sDate2Str( self, t) ##############################################################################
    # DateTime bis einschließlich Stunde in DB-Update/STR_TO_DATE-kompatible Zeichenkette umwandeln
-   def sDate2Str( self, t):
+   def sDate2Str( self, t, bMinSec=False):
+      if bMinSec == False:
         return f'{t.year}-{t.month}-{t.day} {t.hour}'
+      else:
+        return f'{t.year}-{t.month}-{t.day} {t.hour}:{t.minute}:{t.second}'
      
 
    def iGetHours( self, dau):
@@ -728,10 +735,11 @@ class CAcOnOff:
 
          sVonStunde = self.sDate2Str(self.tEin)
          sBisStunde = self.sDate2Str(self.tAus)
+         sNow = self.sDate2Str(self.tNow, True)
 
          sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll, sGrund, tSollAus)\
-                   values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'), '{3}', STR_TO_DATE('{2}', '%Y-%m-%d %H') )"
-         sStmt = sStmt.format( self.sSchaltart_ein,  sVonStunde, sBisStunde, self.sLadeart)
+                   values ( '{0}', STR_TO_DATE('{1}', '%Y-%m-%d %H:%i:%s'), STR_TO_DATE('{2}', '%Y-%m-%d %H'), '{3}', STR_TO_DATE('{4}', '%Y-%m-%d %H') )"
+         sStmt = sStmt.format( self.sSchaltart_ein,  sNow, sVonStunde, self.sLadeart, sBisStunde)
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
@@ -753,10 +761,11 @@ class CAcOnOff:
          self.sLadeart = self.sLadeartAus
 
          sAusStunde = self.sDate2Str(self.tZaehler)
+         sNow = self.sDate2Str(self.tNow, True)
 
          sStmt = "insert into solar2023.t_charge_ticket (eSchaltart, tAnlDat, tSoll )\
-                   values ( '{0}', sysdate(), STR_TO_DATE('{1}', '%Y-%m-%d %H'))"
-         sStmt = sStmt.format( self.sSchaltart_aus,  sAusStunde)
+                   values ( '{0}', STR_TO_DATE('{1}', '%Y-%m-%d %H:%i:%s'), STR_TO_DATE('{2}', '%Y-%m-%d %H'))"
+         sStmt = sStmt.format( self.sSchaltart_aus, sNow,  sAusStunde)
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
@@ -978,7 +987,7 @@ class CAcOnOff:
 
 
       except Exception as e:
-         self.Error2Log(f'Fehler in BerechneMaximaleSocUnterschreitung( {tEin}, {aXXh[0].dSoc}): {e}')
+         self.Error2Log(f'Ausnahme in BerechneMaximaleSocUnterschreitung( {tEin}, {iStunden}): {e}')
          self.vScriptAbbruch()
 
       return dMaxSocUnterschreitung
@@ -986,36 +995,43 @@ class CAcOnOff:
 
    ###### bIstLadenNoetigUndMoeglich(self) ##############################################################################
    def bIstLadenNoetigUndMoeglich(self):
-      print(f'bIstLadenNoetigUndMoeglich')
+      try:
 
-      if self.dSoc < float(self.nSocMin):
-         self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
-         return True 
+         print(f'bIstLadenNoetigUndMoeglich')
 
-      # Einschalten zur nächsten vollen Stunde
-      self.tEin = self.tZaehler
+         # Einschalten zur nächsten vollen Stunde
+         self.tEin = self.tZaehler
 
-      # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
-      # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
-      self.aProgStd[0].dSoc = self.dSoc
-      dSocMaxUnter = self.BerechneMaximaleSocUnterschreitung( self.aProgStd, self.tEin, self.nAnzPrognoseStunden) 
+         if self.dSoc < float(self.nSocMin):
+            self.tAus = self.tEin + + datetime.timedelta(hours=2) # mindestens 20% nachladen
+            self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
+            return True 
 
-      if dSocMaxUnter == 0.0:
-         self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden nicht unterschritten wird')
-         return False 
+         # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
+         # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
+         self.aProgStd[0].dSoc = self.dSoc
 
-      self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
+         dSocMaxUnter = self.BerechneMaximaleSocUnterschreitung( self.aProgStd, self.tEin, self.nAnzPrognoseStunden) 
 
-      # Wie lange wird das Nachladen dauern? 
-      tSollEnde = self.BerechneLadungsEnde( dSocSoll=self.dSoc + dSocMaxUnter)
+         if dSocMaxUnter == 0.0:
+            self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden nicht unterschritten wird')
+            return False 
 
-      # Laden ist verboten in Stunden, wo der Ertrag laut Prognose größer als 0,1kWh/h sein soll
-      # D.h. prüfen: Wann kommt diese nächste Sonnenstunde? Ab da ist kein Laden möglich
-      self.tAus = self.tLeer
-      if self.BerechneAusschaltzeitpunkt(tSollEnde) == False:
-         return False
-      else:
-         return True
+         self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
+
+         # Wie lange wird das Nachladen dauern? 
+         tSollEnde = self.BerechneLadungsEnde( dSocSoll=self.dSoc + dSocMaxUnter)
+
+         # Laden ist verboten in Stunden, wo der Ertrag laut Prognose größer als 0,1kWh/h sein soll
+         # D.h. prüfen: Wann kommt diese nächste Sonnenstunde? Ab da ist kein Laden möglich
+         self.tAus = self.tLeer
+         if self.BerechneAusschaltzeitpunkt(tSollEnde) == False: # setzt self.tAus
+            return False
+         else:
+            return True
+
+      except Exception as e:
+         self.Error2Log(f'Ausnahme in bIstLadenNoetigUndMoeglich(): {e}. return False')
 
       return False
 
@@ -1200,7 +1216,7 @@ class CAcOnOff:
             self.vScriptAbbruch()
 
       except Exception as e:
-         self.Error2Log(f'Fehler in GpioSendeSchaltimpuls():  {e}')
+         self.Error2Log(f'Ausnahme in GpioSendeSchaltimpuls():  {e}')
          self.vScriptAbbruch()
 
 
@@ -1278,7 +1294,13 @@ class CAcOnOff:
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
+
+         sNow = self.sDate2Str(self.tNow, True)
+         sStmt = f"update solar2023.t_charge_ticket set tIst = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s') where tAnlDat = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s')"
+
+         cur.execute( sStmt)
          cur.close()
+
 
       except Exception as e:
          self.Error2Log(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
@@ -1290,6 +1312,7 @@ class CAcOnOff:
 ac = CAcOnOff()                    # Konfigdatei lesen 
 
 ac.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
+ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log schreiben
 
 ac.HoleDbusWerteVomCerbo()                # Werte aus der Anlage lesen, wenn das nicht möglich ist, die Prognose ab dem letzten bekannten SOC rechnen  
 ac.HoleLadeartAusDb()                     # In welchem Zustand ist das Ladegerät?
