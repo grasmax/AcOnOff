@@ -194,6 +194,7 @@ class CLetzteStunde:
       self.dErtrag = 0.0 # Solarertrag aus dem MPPT
       self.dEmL1  = 0.0  # Zähler EM540/L1
       self.dEmL2  = 0.0  # Zähler EM540/L2
+      self.dAnlagenVerbrauch = 0.0
 
       #Differenz der aktuellen Werte zu denen der letzten Stunde
       self.dSocDiff = 0.0    
@@ -329,7 +330,8 @@ class CAcOnOff:
    # Wichtige Werte ins Log schreiben
    def WerteInsLog(self):
       self.Info2Log(f'Untere SOC-Grenze: {self.nSocMin}%')
-
+      self.Info2Log(f'AusgleichAlleNWochen: {self.nAusgleichAlleNWochen} Wochen')
+      self.Info2Log(f'AusgleichStundenAbsorbtion100: {self.dAusgleichStunden} Stunden')
 
    ###### VerbindeMitMariaDb(self) ##############################################################################
    # 2 Verbindungen zur MariaDB aufbauen
@@ -608,14 +610,21 @@ class CAcOnOff:
          self.ls.dEmL2     = rec[3] 
          cur.close()
 
+         #unklar, ob das Sinn macht, erstmal keinen Stundendurchschnitt ausweisen, sondern den Absolutwert
          #wenn der letzte Datensatz nicht von der letzten Stunde stammt, dann den Durchschnitt der letzten Stunden annehmen
-         tDiff = self.tZaehler - self.ls.tStunde
-         iStunden = self.iGetHours( tDiff)
+         #tDiff = self.tZaehler - self.ls.tStunde
+         #iStunden = self.iGetHours( tDiff)
+         iStunden = 1 
 
          self.ls.dSocDiff = round( (self.dSoc - self.ls.dSoc) / iStunden, 2)           # positiv: Batterie wurde geladen, negativ: Batterie wurde entladen
          self.ls.dErtragDiff = round((self.dErtragAbs - self.ls.dErtrag) / iStunden, 2)
          self.ls.dEmL1Diff = round((self.dEmL1Abs - self.ls.dEmL1) / iStunden, 2)
          self.ls.dEmL2Diff = round((self.dEmL2Abs - self.ls.dEmL2) / iStunden, 2)
+
+         dBattkWh = self.dSoc2Kwh(self.ls.dSocDiff) # größer oder kleiner 0
+         #                           (dStadt            + dErtrag)             - (dBatt    + dHaus)
+         self.ls.dAnlagenVerbrauch = (self.ls.dEmL2Diff + self.ls.dErtragDiff) - (dBattkWh + self.ls.dEmL1Diff)
+         self.ls.dAnlagenVerbrauch = round( self.ls.dAnlagenVerbrauch, 2)
 
       except Exception as e:
          self.Error2Log(f'Fehler beim Lesen der Zählerstände der letzten Stunde aus t_victdbus_stunde: {e}')
@@ -1093,10 +1102,11 @@ class CAcOnOff:
          if self.bMitHypoSocRechnen == True:
             return # es gibt keine aktuellen Werte...
          
-         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs)\
-                   values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}  ) \
-                   ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8}"
-         sStmt = sStmt.format(self.sZaehlerStunde, self.dSoc, self.ls.dSocDiff, self.dErtragAbs, self.ls.dErtragDiff, self.ls.dEmL1Diff, self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs)
+         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs,dAnlagenVerbrauch)\
+                   values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}  ) \
+                   ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8},dAnlagenVerbrauch={9}"
+         sStmt = sStmt.format(self.sZaehlerStunde, self.dSoc, self.ls.dSocDiff, self.dErtragAbs, self.ls.dErtragDiff, self.ls.dEmL1Diff, 
+                              self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs, self.ls.dAnlagenVerbrauch)
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
