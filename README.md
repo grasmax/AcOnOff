@@ -18,7 +18,7 @@ Verbrauchswerte werden mit dem Zähler [_EM540_](https://www.gavazziautomation.c
 * mb_pvpro_2023-07-06-14-17.json - Ergebnis einer Abfrage der Solarprognose im json-Format
 * [gh_mpIIAcOnOff.py](https://github.com/grasmax/AcOnOff/blob/main/script/gh_mpIIAcOnOff.py) - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
-* gh_schaltschema.pdf - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
+* [gh_schaltschema.pdf](https://github.com/grasmax/AcOnOff/blob/main/doc/gh_schaltschema.pdf) - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
 
 Alle Scripte werden auf diesem Controller ausgeführt:
 * Raspberry Pi CM4IO Board
@@ -27,5 +27,5 @@ Alle Scripte werden auf diesem Controller ausgeführt:
 * [IO CREST JMB582](https://github.com/geerlingguy/raspberry-pi-pcie-devices/issues/64) 2 Port SATA III PCI-e 3.0 x1 Non-RAID Controller Karte Jmicro Chipsatz SI-PEX40148 
 * 2TB WD20EFZX
   
-Die Inbetriebnahme des Controllers ist [hier](https://github.com/grasmax/AcOnOff/blob/main/doc/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
+Der Aufbau und die Inbetriebnahme des Controllers ist [hier](https://github.com/grasmax/AcOnOff/blob/main/doc/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
 
