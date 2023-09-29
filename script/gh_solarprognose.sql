@@ -39,6 +39,7 @@ CREATE TABLE `t_victdbus_stunde` (
 	`dEmL1` DOUBLE NULL DEFAULT NULL COMMENT 'Änderung des Zählerstands L1 in der letzten Stunde: mit EM540 erfasster Verbrauch in kWh, gemessen am Ausgang AC-OUT1 des MPII',
 	`dEmL2Abs` DOUBLE NULL DEFAULT NULL COMMENT 'Zählerstand L2: mit EM540 erfasster Verbrauch in kWh, gemessen am Eingang AC-IN des MPII',
 	`dEmL2` DOUBLE NULL DEFAULT NULL COMMENT 'Änderung des Zählerstands L2 in der letzten Stunde: mit EM540 erfasster Verbrauch in kWh, gemessen am Eingang AC-IN des MPII',
+	`dAnlagenVerbrauch` DOUBLE NULL DEFAULT NULL COMMENT 'Berechneter Anlagenverbrauch: (dStadt(L2) + dErtrag ) - (dBatt (Soc)   + dHaus (L1))',
 	PRIMARY KEY (`tStunde`) USING BTREE
 )
 COMMENT='per ssh und dbus abgefragte Werte direkt aus der Anlage'
@@ -168,6 +169,19 @@ ENGINE=InnoDB
 
 --  Auswertung
 -- Views müssen über New/View angelegt werden!
+
+v_eval_ticket_kwh
+select 
+`t`.`tSoll` AS `TicketZeit`,`t`.`eSchaltart` AS `TicketSchaltart`,
+`s`.`tStunde` AS `EmDbusStunde`,
+`s`.`dErtrag` AS `Solarertrag`,
+`s`.`dSoc` AS `SOCDifferenz`,
+`s`.`dEmL1` AS `Hausverbrauch`,
+`s`.`dEmL2` AS `StadtstromVerbrauch`,
+`s`.`dAnlagenVerbrauch` AS `AnlagenVerbrauch` 
+from (`t_charge_ticket` `t` join `t_victdbus_stunde` `s`)
+where `t`.`eSchaltart` like 'aus' 
+	and `t`.`tSoll` = `s`.`tStunde`
 
 v_eval_h_victrondata
 SELECT DATE_FORMAT(y.tStunde , '%Y-%m-%d %H Uhr') Stunde , f.P24, f.P12, f.P6, f.P3, f.P1, round(y.dErtrag,2) Ist_kWh, 
