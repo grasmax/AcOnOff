@@ -171,17 +171,18 @@ ENGINE=InnoDB
 -- Views müssen über New/View angelegt werden!
 
 v_eval_ticket_kwh
-select 
-`t`.`tSoll` AS `TicketZeit`,`t`.`eSchaltart` AS `TicketSchaltart`,
-`s`.`tStunde` AS `EmDbusStunde`,
-`s`.`dErtrag` AS `Solarertrag`,
-`s`.`dSoc` AS `SOCDifferenz`,
-`s`.`dEmL1` AS `Hausverbrauch`,
-`s`.`dEmL2` AS `StadtstromVerbrauch`,
-`s`.`dAnlagenVerbrauch` AS `AnlagenVerbrauch` 
-from (`t_charge_ticket` `t` join `t_victdbus_stunde` `s`)
-where `t`.`eSchaltart` like 'aus' 
-	and `t`.`tSoll` = `s`.`tStunde`
+SELECT tiEin.sGrund AS Grund, (sEin.tStunde) AS Ein, tiAus.eSchaltart AS TicketSchaltart, sAus.tStunde, 
+sEin.dErtragAbs AS Yein, sAus.dErtragAbs AS Yaus, round(sAus.dErtragAbs - sEin.dErtragAbs,2)  AS Ertrag,
+sEin.dSocAbs AS SOCein, sAus.dSocAbs AS SOCaus, round(sAus.dSocAbs - sEin.dSocAbs, 2) AS SOC,
+sEin.dEmL1Abs AS kWh_Haus_ein, sAus.dEmL1Abs AS kWh_Haus_aus, round(sAus.dEmL1Abs - sEin.dEmL1Abs,2) as kWh_Haus,
+sEin.dEmL2Abs AS kWh_Stadt_ein, sAus.dEmL2Abs AS kWh_Stadt_aus, round(sAus.dEmL2Abs - sEin.dEmL2Abs,2) as kWh_Stadt
+from (t_charge_ticket tiAus join t_charge_ticket tiEin, t_victdbus_stunde sAus, t_victdbus_stunde sEin) 
+where tiAus.eSchaltart like 'aus' 
+  and tiEin.eSchaltart = 'ein' 
+  AND tiEin.tSoll = (select MAX(tiEinMax.tSoll) FROM t_charge_ticket tiEinMax WHERE tiEinMax.tSoll < tiAus.tSoll)
+  AND sEin.tStunde = tiEin.tSoll
+  and sAus.tStunde = tiAus.tSoll 
+ORDER BY Ein;
 
 v_eval_h_victrondata
 SELECT DATE_FORMAT(y.tStunde , '%Y-%m-%d %H Uhr') Stunde , f.P24, f.P12, f.P6, f.P3, f.P1, round(y.dErtrag,2) Ist_kWh, 
