@@ -40,6 +40,14 @@ CREATE TABLE `t_victdbus_stunde` (
 	`dEmL2Abs` DOUBLE NULL DEFAULT NULL COMMENT 'Zählerstand L2: mit EM540 erfasster Verbrauch in kWh, gemessen am Eingang AC-IN des MPII',
 	`dEmL2` DOUBLE NULL DEFAULT NULL COMMENT 'Änderung des Zählerstands L2 in der letzten Stunde: mit EM540 erfasster Verbrauch in kWh, gemessen am Eingang AC-IN des MPII',
 	`dAnlagenVerbrauch` DOUBLE NULL DEFAULT NULL COMMENT 'Berechneter Anlagenverbrauch: (dStadt(L2) + dErtrag ) - (dBatt (Soc)   + dHaus (L1))',
+	`dCellVoltageMin` DOUBLE NULL DEFAULT NULL COMMENT 'Minimale Zellspannung, abgefragt mit dbus',
+	`dCellVoltageMax` DOUBLE NULL DEFAULT NULL COMMENT 'Maximale Zellspannung, abgefragt mit dbus',
+	`dCellTemperaturMin` DOUBLE NULL DEFAULT NULL COMMENT 'Minimale Zelltemperatur, abgefragt mit dbus',
+	`dCellTemperaturMax` DOUBLE NULL DEFAULT NULL COMMENT 'Maximale Zelltemperatur, abgefragt mit dbus',
+	`sCellIdMinVoltage` VARCHAR(10) NULL DEFAULT NULL COMMENT 'ID der Batteriezelle mit der niedrigsten Spannung',
+	`sCellIdMaxVoltage` VARCHAR(10) NULL DEFAULT NULL COMMENT 'ID der Batteriezelle mit der höchsten Spannung',
+	`sCellIdMinTemperature` VARCHAR(10) NULL DEFAULT NULL COMMENT 'ID der Batteriezelle mit der niedrigsten Temperatur',
+	`sCellIdMaxTemperature` VARCHAR(10) NULL DEFAULT NULL COMMENT 'ID der Batteriezelle mit der höchsten Temperatur',
 	PRIMARY KEY (`tStunde`) USING BTREE
 )
 COMMENT='per ssh und dbus abgefragte Werte direkt aus der Anlage'
@@ -201,6 +209,7 @@ round(y.dErtrag - f.P12, 2) DeltaP12, round(y.dErtrag - f.P24, 2) DeltaP24,
 y.dSosAbs SOC
 from t_victdbus_stunde y, t_prognose f
 WHERE y.tStunde = f.Stunde  ;
+
 
 
 
