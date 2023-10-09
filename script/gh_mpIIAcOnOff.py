@@ -284,6 +284,7 @@ class CAcOnOff:
          self.SshDbusTempFile = Settings['Ssh']['DbusTempFile']
          self.SshDbusSolarServiceName  = Settings['Ssh']['DbusSolarServiceName']
          self.SshDbusEmServiceName  = Settings['Ssh']['DbusEmServiceName']
+         self.SshDbusBattServiceName  = Settings['Ssh']['DbusBattServiceName']
 
          self.iGpioPinActorAc = Settings['Gpio']['PinActorAc']
          self.iGpioPinSensorAc = Settings['Gpio']['PinSensorAc']
@@ -309,6 +310,15 @@ class CAcOnOff:
       self.dErtragAbs = 0.0         # aktueller Gesamt-Solarertrag, abgefragt per dbus
       self.dEmL1Abs = 0.0           # aktueller Zählerstand EM540/L1, abgefragt per dbus
       self.dEmL2Abs = 0.0           # aktueller Zählerstand EM540/L2, abgefragt per dbus
+      self.sMinCellV = 0.0          # minimale Zellspannung, abgefragt per dbus
+      self.sMaxCellV = 0.0          # maximale Zellspannung, abgefragt per dbus
+      self.sMinCellT = 0.0          # minimale Zelltemperatur, abgefragt per dbus
+      self.sMaxCellT = 0.0          # maximale Zelltemperatur, abgefragt per dbus
+      self.sMinCellVCellId = ""     # Batterie-ID der minimale Zellspannung, abgefragt per dbus
+      self.sMaxCellVCellId = ""     # Batterie-ID der maximale Zellspannung, abgefragt per dbus
+      self.sMinCellTCellId = ""     # Batterie-ID der minimale Zelltemperatur, abgefragt per dbus
+      self.sMaxCellTCellId = ""     # Batterie-ID der maximale Zelltemperatur, abgefragt per dbus
+
 
       self.nAnzStunden = 0 # Basis für die Durchschnittsberechnung im Tagesprofil
 
@@ -535,6 +545,85 @@ class CAcOnOff:
          else:
             self.dEmL2Abs = round(float(sL2),2)
 
+
+         sMinCellV = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MinCellVoltage")
+         if len(sMinCellV) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MinCellVoltage.')
+         else:
+            self.sMinCellV = round(float(sMinCellV),2)
+
+         sMaxCellV = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MaxCellVoltage")
+         if len(sMaxCellV) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MaxCellVoltage.')
+         else:
+            self.sMaxCellV = round(float(sMaxCellV),2)
+
+         sMinCellT = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MinCellTemperature")
+         if len(sMinCellT) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MinCellTemperature.')
+         else:
+            self.sMinCellT = round(float(sMinCellT),2)
+
+         sMaxCellT = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MaxCellTemperature")
+         if len(sMaxCellT) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MaxCellTemperature.')
+         else:
+            self.sMaxCellT = round(float(sMaxCellT),2)
+
+         sVal = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MinVoltageCellId")
+         if len(sVal) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MinVoltageCellId.')
+         else:
+            self.sMinCellVCellId = sVal
+
+         sVal = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MaxVoltageCellId")
+         if len(sVal) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MaxVoltageCellId.')
+         else:
+            self.sMaxCellVCellId = sVal
+
+         sVal = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MinTemperatureCellId")
+         if len(sVal) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MinTemperatureCellId.')
+         else:
+            self.sMinCellTCellId = sVal
+
+         sVal = self.HoleDbusWertVomCerbo( self.SshDbusBattServiceName, "/System/MaxTemperatureCellId")
+         if len(sVal) <= 0:
+            self.Error2Log( f'Fehler beim Lesen SSH/DBUS/MaxTemperatureCellId.')
+         else:
+            self.sMaxCellTCellId = sVal
+
+
+         # Abfrage der LEDs am MPII:
+         # dbus -y com.victronenergy.vebus.ttyS4 /Leds/Inverter GetValue
+         # dbus -y com.victronenergy.vebus.ttyS4 /Leds/Absorption GetValue
+         
+         #Abfrage der installierten Batteriekapa:
+         #  dbus -y com.victronenergy.battery.socketcan_can1 /InstalledCapacity GetValue
+
+         # minimale Zellspannung und Temp
+         # dbus -y com.victronenergy.battery.socketcan_can1 /System/MinCellVoltage GetValue
+         # dbus -y com.victronenergy.battery.socketcan_can1 /System/MinCellTemperature GetValue
+
+         # Anzahl offline
+         # dbus -y com.victronenergy.battery.socketcan_can1 /System/NrOfModulesOffline GetValue
+
+         #  Batt-Spannung
+         #  dbus -y com.victronenergy.battery.socketcan_can1 /Dc/0/Voltage GetValue
+
+         # maximale PV-Spannung
+         # dbus -y com.victronenergy.solarcharger.ttyS7 /History/Overall/MaxPvVoltage GetValue
+         # aktuelle PV-Spannung
+         # dbus -y com.victronenergy.solarcharger.ttyS7 /Pv/V GetValue
+
+
+         # Abfrage weiterer Dienste
+         # dbus -y
+         # Abfrage aller Werte zum Dienst, Bsp: vebus:
+         # dbus -y com.victronenergy.vebus.ttyS4
+
+
       except Exception as e:
          self.Error2Log( f'Fehler in HoleDbusWerteVomCerbo(): {e}')
       
@@ -724,6 +813,8 @@ class CAcOnOff:
 
       # Wie lange wird das Ausgleichen dauern? 
       tSollEnde = self.BerechneLadungsEnde( dSocSoll=100.0)
+
+      tSollEnde =  tSollEnde + datetime.timedelta(hours = self.dAusgleichStunden)
 
       # Ist Ausgleichen möglich? Ausgleichen ist verboten in Stunden, wo der Ertrag laut Prognose größer als 0,1kWh/h sein soll
       # D.h. prüfen: Wann kommt diese nächste Sonnenstunde? Ab da ist kein Laden möglich
@@ -1102,11 +1193,18 @@ class CAcOnOff:
          if self.bMitHypoSocRechnen == True:
             return # es gibt keine aktuellen Werte...
          
-         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs,dAnlagenVerbrauch)\
-                   values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}  ) \
-                   ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8},dAnlagenVerbrauch={9}"
+
+         sStmt = "insert into solar2023.t_victdbus_stunde (tStunde, dSocAbs, dSoc, dErtragAbs, dErtrag, dEmL1, dEmL2, dEmL1Abs, dEmL2Abs,dAnlagenVerbrauch,\
+                        dCellVoltageMin,dCellVoltageMax,dCellTemperaturMin,dCellTemperaturMax,sCellIdMinVoltage,sCellIdMaxVoltage,sCellIdMinTemperature,sCellIdMaxTemperature)\
+                   values (STR_TO_DATE('{0}', '%Y-%m-%d %H'), {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}  ) \
+                   ON DUPLICATE KEY UPDATE  dSocAbs={1}, dSoc={2}, dErtragAbs={3}, dErtrag={4}, dEmL1={5}, dEmL2={6}, dEmL1Abs={7}, dEmL2Abs={8},dAnlagenVerbrauch={9},\
+                   dCellVoltageMin={10},dCellVoltageMax={11},dCellTemperaturMin={12},dCellTemperaturMax={13},sCellIdMinVoltage={14},sCellIdMaxVoltage={15},sCellIdMinTemperature={16},sCellIdMaxTemperature={17}"
          sStmt = sStmt.format(self.sZaehlerStunde, self.dSoc, self.ls.dSocDiff, self.dErtragAbs, self.ls.dErtragDiff, self.ls.dEmL1Diff, 
-                              self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs, self.ls.dAnlagenVerbrauch)
+                              self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs, self.ls.dAnlagenVerbrauch,
+                              self.sMinCellV,  self.sMaxCellV, self.sMinCellT, self.sMaxCellT,
+                              self.sMinCellVCellId,self.sMaxCellVCellId, self.sMinCellTCellId,self.sMaxCellTCellId)
+         print(sStmt)
+
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
@@ -1137,6 +1235,29 @@ class CAcOnOff:
          self.Error2Log(f'Fehler beim Prognose-insert in t_victdbus_stunde mit {sStunde}, {dSocPrognose}: {e}')
          self.vScriptAbbruch()
          
+   ###### SchreibeStatusInMariaDb(self) ##############################################################################
+   def SchreibeStatusInMariaDb(self):
+
+      try:
+         sLetzterAusgleich = self.sDate2Str( self.tLetzterAusgleich)
+
+         sStmt = f"update solar2023.t_charge_state set eLadeart='{self.sLadeart}', tAendDat=sysdate() , nAnzStunden={self.nAnzStunden},\
+                                                tLetzterAusgleich=STR_TO_DATE('{sLetzterAusgleich}', '%Y-%m-%d %H')"
+
+         cur = self.mdb.cursor()
+         cur.execute( sStmt)
+
+         sNow = self.sDate2Str(self.tNow, True)
+         sStmt = f"update solar2023.t_charge_ticket set tIst = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s') where tAnlDat = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s')"
+
+         cur.execute( sStmt)
+         cur.close()
+
+
+      except Exception as e:
+         self.Error2Log(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
+         self.vScriptAbbruch()
+
 
    ###### HoleGpioStatus(self, iPin, bMitInit) ##############################################################################
    def HoleGpioStatus(self, iPin, bMitInit):
@@ -1293,28 +1414,6 @@ class CAcOnOff:
       else:
            self.Error2Log(f'Fehler: Unbekannte Ladeart: {self.sLadeart}')
 
-   ###### SchreibeStatusInMariaDb(self) ##############################################################################
-   def SchreibeStatusInMariaDb(self):
-
-      try:
-         sLetzterAusgleich = self.sDate2Str( self.tLetzterAusgleich)
-
-         sStmt = f"update solar2023.t_charge_state set eLadeart='{self.sLadeart}', tAendDat=sysdate() , nAnzStunden={self.nAnzStunden},\
-                                                tLetzterAusgleich=STR_TO_DATE('{sLetzterAusgleich}', '%Y-%m-%d %H')"
-
-         cur = self.mdb.cursor()
-         cur.execute( sStmt)
-
-         sNow = self.sDate2Str(self.tNow, True)
-         sStmt = f"update solar2023.t_charge_ticket set tIst = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s') where tAnlDat = STR_TO_DATE('{sNow}', '%Y-%m-%d %H:%i:%s')"
-
-         cur.execute( sStmt)
-         cur.close()
-
-
-      except Exception as e:
-         self.Error2Log(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
-         self.vScriptAbbruch()
 
 
 ###### CAcOnOff  } ##############################################################################
