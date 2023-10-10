@@ -162,6 +162,9 @@ import datetime
 import subprocess
 import logging
 from logging.handlers import RotatingFileHandler
+
+import logging as log4Tickets
+
 import json
 import mariadb
 import time
@@ -210,12 +213,19 @@ class CAcOnOff:
    def __init__(self):
       print("Programmstart")
 
-      # Konfiguration einlesen
+      # 2 Logdateien anlegen
       logging.basicConfig(encoding='utf-8', level=logging.INFO,
                           # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
                           style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
                           handlers=[RotatingFileHandler('./log/mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
 
+      log4Tickets.basicConfig(encoding='utf-8', level=logging.INFO,
+                          # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
+                          style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
+                          handlers=[RotatingFileHandler('./log/mpIIAcOnOffTicket.log', maxBytes=100000, backupCount=10)],
+                          force=True)
+
+      # Zählerstunde initialisieren
       self.tNow = datetime.datetime.now()
       # Debughilfe: 
       #self.tNow = datetime.datetime( 2023,9,21,23, 55)
@@ -231,6 +241,7 @@ class CAcOnOff:
       logging.info( sJetzt)
       print( 'logging ok')
 
+      # Konfiguration einlesen
       sCfgFile = "mpIIAcOnOff.cfg" # sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\mpIIAcOnOff.cfg"
       try:
          f = open(sCfgFile, "r")
@@ -303,7 +314,7 @@ class CAcOnOff:
          logging.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
          quit()
 
-      #berechnete Werte      
+      #berechnete Werte initialisieren     
 
       self.bMitHypoSocRechnen = False     # wenn die aktuellen Werte nicht per ssh/dbus aus dem Cerbo gelesen werden konnten, mit einem hyp. SOC weiterrechnen
       self.dSoc = 0.0               # aktueller SOC aus der Anlage, abgefragt per dbus
@@ -845,10 +856,14 @@ class CAcOnOff:
          cur.execute( sStmt)
          cur.close()
 
-         self.Info2Log(f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}')
+         sLog = f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}'
+         self.Info2Log(sLog)
+         log4Tickets.info(sLog)
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}')
+         sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}'
+         self.Error2Log(sErr)
+         log4Tickets.error(sErr)
          self.vScriptAbbruch()
 
 
@@ -871,13 +886,17 @@ class CAcOnOff:
          cur.execute( sStmt)
          cur.close()
 
-         self.Info2Log(f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}')
+         sLog = f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}'
+         self.Info2Log(sLog)
+         log4Tickets.info(sLog)
 
          if sLadeart == self.sLadeartAusgleichen:
             self.tLetzterAusgleich = self.tZaehler
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}')
+         sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}'
+         self.Error2Log(sErr)
+         log4Tickets.error(sErr)
          self.vScriptAbbruch()
 
 
@@ -1418,7 +1437,7 @@ class CAcOnOff:
 
 ###### CAcOnOff  } ##############################################################################
 
-ac = CAcOnOff()                    # Konfigdatei lesen 
+ac = CAcOnOff()                           # Konfigdatei lesen 
 
 ac.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
 ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log schreiben
