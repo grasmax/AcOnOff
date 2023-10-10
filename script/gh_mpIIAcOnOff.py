@@ -271,6 +271,18 @@ class CAcOnOff:
 
          self.nVerbotVon = Settings['Laden']['VerbotVon']
          self.nVerbotBis = Settings['Laden']['VerbotBis']
+         if self.nVerbotVon < self.nVerbotBis:
+            self.tVerbotVon = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, self.nVerbotVon, 0)
+            self.tVerbotBis = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, self.nVerbotBis, 0)
+            self.tVerbotVon2 = self.tLeer
+            self.tVerbotBis2 = self.tLeer
+         else:
+            self.tVerbotVon = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, 0, 0)
+            self.tVerbotBis = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, self.nVerbotBis, 0)
+            self.tVerbotVon2 = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, self.nVerbotVon, 0)
+            self.tVerbotBis2 = datetime.datetime( self.tNow.year, self.tNow.month, self.tNow.day, 23, 0)
+            self.tVerbotBis2 = self.tVerbotBis2 + datetime.timedelta( hours=1)
+
          self.nAnzPrognoseStunden = Settings['Laden']['AnzPrognoseStunden']
          self.dMinSolarPrognoseStunde = Settings['Laden']['MinSolarPrognoseStunde']
 
@@ -757,7 +769,7 @@ class CAcOnOff:
    ###### BerechneAusschaltzeitpunkt(self, tSollEnde) ##############################################################################
    def BerechneAusschaltzeitpunkt(self, tSollEnde):
       # von tEin bis tSollEnde prüfen, ob mit Solarertrag zu rechnen ist
-      # dabei nicht mit den Verbotszeiten (self.nVerbotVon,self.nVerbotBis) arbeiten, sondern die Prognosetabelle abfragen
+      # dabei nicht mit festen Verbotszeiten arbeiten, sondern die Prognosetabelle abfragen
 
 #$$ nur temp für Tests, um auch bei zu erwartendem Solarertrag das Nachladen und Ausgleichen testen zu können
 #      self.tAus = tSollEnde # keine Einschränkung für das Laden durch die Solarprognose
@@ -810,6 +822,13 @@ class CAcOnOff:
          self.tAus = tSollEnde # keine Einschränkung durch die Solarprognose
          return True # es darf geladen werden
 
+   def bLiegtEinschaltenImVerbot(self):
+      if self.tVerbotVon <= self.tEin and self.tEin <= self.tVerbotBis:
+         return f'{self.tVerbotVon} - {self.tVerbotBis}'
+      if self.tVerbotVon2 != self.tLeer:
+         if self.tVerbotVon2 <= self.tEin and self.tEin <= self.tVerbotBis2:
+               return f'{self.tVerbotVon} - {self.tVerbotBis}, {self.tVerbotVon2} - {self.tVerbotBis2}'
+      return f''
 
    ###### bIstAusgleichenNoetigUndMoeglich(self) ##############################################################################
    def bIstAusgleichenNoetigUndMoeglich(self):
@@ -821,6 +840,13 @@ class CAcOnOff:
 
       # Einschalten zur nächsten vollen Stunde
       self.tEin = self.tZaehler
+
+      # Prüfen, ob Einschalten im verbotenen Bereich liegt
+      sVerbot = self.bLiegtEinschaltenImVerbot()
+      if 0 < len (sVerbot) :
+         self.Info2Log(f'Nachladen nicht möglich, weil Einschalt-Stunde {self.tEin} im verbotenen Bereich ({sVerbot}) liegt')
+         return False 
+
 
       # Wie lange wird das Ausgleichen dauern? 
       tSollEnde = self.BerechneLadungsEnde( dSocSoll=100.0)
@@ -1121,10 +1147,17 @@ class CAcOnOff:
          # Einschalten zur nächsten vollen Stunde
          self.tEin = self.tZaehler
 
+         # Prüfen, ob Net-Ein nötig ist
          if self.dSoc < float(self.nSocMin):
             self.tAus = self.tEin + + datetime.timedelta(hours=2) # mindestens 20% nachladen
             self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
             return True 
+
+         # Prüfen, ob Einschalten im verbotenen Bereich liegt
+         sVerbot = self.bLiegtEinschaltenImVerbot()
+         if 0 < len (sVerbot) :
+            self.Info2Log(f'Nachladen nicht möglich, weil Einschalt-Stunde {self.tEin} im verbotenen Bereich ({sVerbot}) liegt')
+            return False 
 
          # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
          # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
