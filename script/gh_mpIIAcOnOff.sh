@@ -8,12 +8,14 @@ logfiletimestamp=$(date "+%Y%m%d_%H%M%S")
 date   > /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
 echo 'Starte mpIIaconoff.sh '  >> /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
 
-
 # Einen neuen Agent starten:
 eval "$(ssh-agent -s)" >> /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
 
 # Den ssh-Schluessel hinterlegen:
-/usr/bin/ssh-add ~/.ssh/k4  >> /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
+# die >>-Umleitung funktioniert nicht
+#/usr/bin/ssh-add ~/.ssh/k4  >> /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
+/usr/bin/ssh-add ~/.ssh/k4
+echo 'Vermutlich wurde die k4 Identity mit ssh-add hinzugefügt'  >> /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
 
 # ssh-Variabelen ins Log schreiben:
 env | grep SSH  >>/mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
@@ -28,4 +30,8 @@ cd /mnt/wd2tb/script/mpIIaconoff
 
 # Den Agenten wieder beenden:
 eval "$(ssh-agent -k)"  >>/mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_$logfiletimestamp.txt
+
+#Alte Logdateien löschen
+find /mnt/wd2tb/script/mpIIaconoff/log/mpIIaconoff_shlog_20* -type f -mtime +4 -delete
+
 
