@@ -162,9 +162,6 @@ import datetime
 import subprocess
 import logging
 from logging.handlers import RotatingFileHandler
-
-import logging as log4Tickets
-
 import json
 import mariadb
 import time
@@ -209,21 +206,50 @@ class CLetzteStunde:
 ###### CAcOnOff  { ##############################################################################
 class CAcOnOff:
 
+   ###### setup_logger ##############################################################################
+   # Idee aus https://stackoverflow.com/questions/11232230/logging-to-two-files-with-different-settings, leicht erweitert auf rotating und um vernüftige Formatierung
+   def setup_logger(self, logger_name, log_file, level=logging.INFO):
+      try:
+         l = logging.getLogger(logger_name)
+
+         fileHandler = RotatingFileHandler(log_file, maxBytes=100000, backupCount=10, encoding='utf-8')
+
+         formatter = logging.Formatter(style='{',datefmt='%Y-%m-%d %H:%M:%S', fmt='{asctime} {levelname} {filename}:{lineno}: {message}')
+         fileHandler.setFormatter(formatter)
+
+         streamHandler = logging.StreamHandler()
+         streamHandler.setFormatter(formatter)
+
+         l.setLevel(level)
+         l.addHandler(fileHandler)
+         l.addHandler(streamHandler)  
+
+      except Exception as e:
+         self.log.error(f'Fehler in json.load(): {e}')
+         quit()
+
+
+
    ###### __init__(self) ##############################################################################
    def __init__(self):
-      print("Programmstart")
 
-      # 2 Logdateien anlegen
-      logging.basicConfig(encoding='utf-8', level=logging.INFO,
-                          # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
-                          style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
-                          handlers=[RotatingFileHandler('./log/mpIIAcOnOff.log', maxBytes=100000, backupCount=10)],)
+      # Logging: dieses Script wird per sh gerufen, der gesamte Output der Scriptausführung, einschließlich
+      # streamHandler und print wird in einer Textdatei mit dem Zeitstempel der Ausführung gesammelt
+      # Gelogggt wird eigentlich in die MariaDb.
+      # Das Datei war gedacht für den Fall, dass es Probleme mit dem Verbindungsaufbau zur MariaDB gibt.
+      # Es hat sich aber herausgestellt, dass man von einem Mobilgerät (Handy..) einfacher auf eine Textdatei,
+      # als auf eine Datenbank zugreifen kann. Deswegen werden alle Logeinträge auch in eine Textdatei geschrieben.
+      # Ab Oktober 2023 werden auch die Schalttickets zusätzlich in eine Textdatei geschrieben.
+      # Detaillierte Daten, die nur temporär wichtig sind, werden nur mit print ausgegeben.
 
-      log4Tickets.basicConfig(encoding='utf-8', level=logging.INFO,
-                          # DEBUG führt dazu, dass der HTTP-Request samt Passwörtern und APIKeys geloggt wird!
-                          style='{', datefmt='%Y-%m-%d %H:%M:%S', format='{asctime} {levelname} {filename}:{lineno}: {message}',
-                          handlers=[RotatingFileHandler('./log/mpIIAcOnOffTicket.log', maxBytes=100000, backupCount=10)],
-                          force=True)
+      # 2 Logdateien anlegen, Dateiendung txt, damit das Öffnen in Chrome möglich wird
+      self.setup_logger('log1', './log/mpIIAcOnOff.txt')
+      self.setup_logger('log2', './log/mpIIAcOnOffTicket.txt')
+      self.log = logging.getLogger('log1')
+      self.log4Tickets = logging.getLogger('log2')
+      
+      self.log.info('Programmstart')
+
 
       # Zählerstunde initialisieren
       self.tNow = datetime.datetime.now()
@@ -237,23 +263,21 @@ class CAcOnOff:
       self.tLeer = datetime.datetime(2022,1,1)
 
       sJetzt = f'Jetzt: {self.tNow}, Zähler: {self.tZaehler}, Zählerstunde: {self.nZaehlerStunde}, Leer: {self.tLeer}'
-      print( sJetzt)
-      logging.info( sJetzt)
-      print( 'logging ok')
+      self.log.info( sJetzt)
 
       # Konfiguration einlesen
       sCfgFile = "mpIIAcOnOff.cfg" # sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\mpIIAcOnOff.cfg"
       try:
          f = open(sCfgFile, "r")
       except Exception as e:
-         logging.error(f'Fehler in open({sCfgFile}): {e}')
+         self.log.error(f'Fehler in open({sCfgFile}): {e}')
          quit()
 
       try:
          Settings = json.load(f)
          f.close()
       except Exception as e:
-         logging.error(f'Fehler in json.load(): {e}')
+         self.log.error(f'Fehler in json.load(): {e}')
          quit()
       
       try:
@@ -323,7 +347,7 @@ class CAcOnOff:
          self.MariaPwd = base64.b64decode(sPwdCode).decode("utf-8")
 
       except Exception as e:
-         logging.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
+         self.log.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
          quit()
 
       #berechnete Werte initialisieren     
@@ -359,12 +383,14 @@ class CAcOnOff:
       self.aProgStd = [CPrognoseStunde(self.tZaehler, h) for h in range(self.nAnzPrognoseStunden)]
 
    
-   ###### VerbindeMitMariaDb(self) ##############################################################################
+   ###### WerteInsLog(self) ##############################################################################
    # Wichtige Werte ins Log schreiben
    def WerteInsLog(self):
-      self.Info2Log(f'Untere SOC-Grenze: {self.nSocMin}%')
+
+      self.Info2Log(f'Untere SOC-Grenze: {self.nSocMin} %')
       self.Info2Log(f'AusgleichAlleNWochen: {self.nAusgleichAlleNWochen} Wochen')
       self.Info2Log(f'AusgleichStundenAbsorbtion100: {self.dAusgleichStunden} Stunden')
+
 
    ###### VerbindeMitMariaDb(self) ##############################################################################
    # 2 Verbindungen zur MariaDB aufbauen
@@ -377,21 +403,21 @@ class CAcOnOff:
             self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
             bConn = True
          except Exception as e:
-            logging.error(f'Fehler in mariadb.connect(): {e}')
+            self.log.error(f'Fehler in mariadb.connect(): {e}')
 
          try:
             self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
             bConnLog = True
 
          except Exception as e:
-            logging.error(f'Fehler in mariadb.connect() fürs Logging: {e}')
+            self.log.error(f'Fehler in mariadb.connect() fürs Logging: {e}')
 
          if bConnLog == True and bConn == True:
             break
          time.sleep(2)
 
       if bConnLog != True or bConn != True:
-         logging.error(f'Fehler in VerbindeMitMariaDb(): Conn: {bConn}, ConnLog: {bConnLog}')
+         self.log.error(f'Fehler in VerbindeMitMariaDb(): Conn: {bConn}, ConnLog: {bConnLog}')
          self.vScriptAbbruch()
 
 
@@ -405,7 +431,7 @@ class CAcOnOff:
       self.Info2Log('mdb-close')
       self.mdb.close()
       self.mdbLog.close()
-      print("Programmende")
+      self.log.info("Programmende")
 
 
    ###### vScriptAbbruch(self) ##############################################################################
@@ -426,10 +452,13 @@ class CAcOnOff:
       try:
          cur.execute( sStmt)
          self.mdbLog.commit()
-         print(f'Logeintrag: {eTyp}: {eLadeart}: {sText}')
+         sOut = f'Logeintrag: {eTyp}: {eLadeart}: {sText}'
+         self.log.info(sOut)
+         print(sOut)
+         
 
       except Exception as e:
-         logging.error(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in t_charge_log: {e}')
+         self.log.error(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in t_charge_log: {e}')
          self.vScriptAbbruch()
 
 
@@ -833,7 +862,6 @@ class CAcOnOff:
    ###### bIstAusgleichenNoetigUndMoeglich(self) ##############################################################################
    def bIstAusgleichenNoetigUndMoeglich(self):
 
-      print(f'bIstAusgleichenNoetigUndMoeglich')
       diff = self.tNow - self.tLetzterAusgleich 
       if diff.days < self.nAusgleichAlleNWochen * 7 :
          return False # Ausgleich ist nicht nötig
@@ -884,12 +912,12 @@ class CAcOnOff:
 
          sLog = f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}'
          self.Info2Log(sLog)
-         log4Tickets.info(sLog)
+         self.log4Tickets.info(sLog)
 
       except Exception as e:
          sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}'
          self.Error2Log(sErr)
-         log4Tickets.error(sErr)
+         self.log4Tickets.error(sErr)
          self.vScriptAbbruch()
 
 
@@ -914,7 +942,7 @@ class CAcOnOff:
 
          sLog = f'Schalt-Ticket in t_charge_ticket eingetragen: {self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}'
          self.Info2Log(sLog)
-         log4Tickets.info(sLog)
+         self.log4Tickets.info(sLog)
 
          if sLadeart == self.sLadeartAusgleichen:
             self.tLetzterAusgleich = self.tZaehler
@@ -922,7 +950,7 @@ class CAcOnOff:
       except Exception as e:
          sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}'
          self.Error2Log(sErr)
-         log4Tickets.error(sErr)
+         self.log4Tickets.error(sErr)
          self.vScriptAbbruch()
 
 
@@ -1063,7 +1091,7 @@ class CAcOnOff:
                iStunde = self.iGetHours( tDiff)
 
                if iStunde < iStunden:
-                  print(f'Stunde: {iStunde}: {tProgn}, Prognose: {dProg}')
+                  print(f'Stunde: {iStunde}: {tProgn}, Prognose: {dProg}') # reicht, wenn es im sh-log steht
                   aXXh[iStunde].dSolarPrognose = dProg
 
                rec = cur.fetchone()
@@ -1078,8 +1106,6 @@ class CAcOnOff:
 
    ###### BerechneMaximaleSocUnterschreitung(self, aXXh, tEin, iStunden) ##############################################################################
    def BerechneMaximaleSocUnterschreitung(self, aXXh, tEin, iStunden):
-
-      print('BerechneMaximaleSocUnterschreitung()')
 
       try:
          self.SolarprognoseEinlesen( aXXh, tEin, iStunden)  # Solarprognose einlesen, direkt nach aXXh
@@ -1120,7 +1146,7 @@ class CAcOnOff:
             dSocPrognose = min( float(self.nSocAbsorbtion), round(dSocPrognose + dSocDiff, 2))
 
             aXXh[h].dSoc = dSocPrognose
-            print(f'aXXh[{h}]: {aXXh[h].tStunde}:  {aXXh[h].dSoc}')
+            print(f'aXXh[{h}]: {aXXh[h].tStunde}:  {aXXh[h].dSoc}') # damit nicht das Log zumüllen, es reicht aus, dass diese Werte im sh-Protokoll stehen
             self.SchreibePrognoseWertInMariaDb( aXXh[h].tStunde, aXXh[h].dSoc)
 
             if( aXXh[h].dSoc < float(self.nSocMin)):
@@ -1142,12 +1168,10 @@ class CAcOnOff:
    def bIstLadenNoetigUndMoeglich(self):
       try:
 
-         print(f'bIstLadenNoetigUndMoeglich')
-
          # Einschalten zur nächsten vollen Stunde
          self.tEin = self.tZaehler
 
-         # Prüfen, ob Net-Ein nötig ist
+         # Prüfen, ob Not-Ein nötig ist
          if self.dSoc < float(self.nSocMin):
             self.tAus = self.tEin + + datetime.timedelta(hours=2) # mindestens 20% nachladen
             self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
@@ -1166,10 +1190,10 @@ class CAcOnOff:
          dSocMaxUnter = self.BerechneMaximaleSocUnterschreitung( self.aProgStd, self.tEin, self.nAnzPrognoseStunden) 
 
          if dSocMaxUnter == 0.0:
-            self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden nicht unterschritten wird')
+            self.Info2Log(f'Nachladen nicht nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden-1} Stunden nicht unterschritten wird')
             return False 
 
-         self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
+         self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden-1} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
 
          # Wie lange wird das Nachladen dauern? 
          tSollEnde = self.BerechneLadungsEnde( dSocSoll=self.dSoc + dSocMaxUnter)
@@ -1192,7 +1216,6 @@ class CAcOnOff:
    ###### bIstAusgleichenAusschaltenMoeglich(self) ##############################################################################
    # Möglich, wenn SOC mindestens <dAusgleichStunden> Stunden bei 100% war
    def bIstAusgleichenAusschaltenMoeglich(self):
-      print("bIstAusgleichenAusschaltenMoeglich")
 
       try:
          tVon = self.tZaehler - datetime.timedelta(hours=self.dAusgleichStunden)
@@ -1228,7 +1251,6 @@ class CAcOnOff:
    # Möglich, wenn SOC ausreichend hoch
    # Nötig, wenn Solarertrag zu erwarten ist
    def bIstLadenAusschaltenMoeglichOderNoetig( self):
-      print("bIstLadenAusschaltenMoeglichOderNoetig")
 
       if self.bIstLadenNoetigUndMoeglich() == True:
          self.Info2Log(f'Nachladen wird nicht ausgeschaltet, weil bIstLadenNoetigUndMoeglich() == True')
@@ -1255,8 +1277,6 @@ class CAcOnOff:
                               self.ls.dEmL2Diff, self.dEmL1Abs, self.dEmL2Abs, self.ls.dAnlagenVerbrauch,
                               self.sMinCellV,  self.sMaxCellV, self.sMinCellT, self.sMaxCellT,
                               self.sMinCellVCellId,self.sMaxCellVCellId, self.sMinCellTCellId,self.sMaxCellTCellId)
-         print(sStmt)
-
 
          cur = self.mdb.cursor()
          cur.execute( sStmt)
@@ -1335,7 +1355,7 @@ class CAcOnOff:
                sPinStat = self.sGpioPinAus;
             else:
                sPinStat = self.sGpioPinUnklar;
-            print(f'Pin {self.iGpioPinSensorAc} hat Wert {iStat1}-->{sPinStat}')
+            self.Info2Log(f'Pin {self.iGpioPinSensorAc} hat Wert {iStat1}-->{sPinStat}')
             return sPinStat
          else:
             self.Error2Log(f'GPIO-Status Pin {self.iGpioPinSensorAc} nicht eindeutig:  Versuch1: {iStat1}, Versuch2: {iStat2}, Versuch3: {iStat3},')
@@ -1355,7 +1375,7 @@ class CAcOnOff:
 
       if (self.sAcSensor == self.sGpioPinEin and (self.sLadeart == self.sLadeartAusgleichen or self.sLadeart == self.sLadeartNachladen)) \
          or (self.sAcSensor == self.sGpioPinAus and (self.sLadeart == self.sLadeartAus)):
-         print(f'GPIO-Status Pin {self.iGpioPinSensorAc} stimmt mit aktueller Ladeart überein: GPIO: {self.sAcSensor}, Ladeart: {self.sLadeart}')
+         self.Info2Log(f'GPIO-Status Pin {self.iGpioPinSensorAc} stimmt mit aktueller Ladeart überein: GPIO: {self.sAcSensor}, Ladeart: {self.sLadeart}')
 
       else:
          self.Error2Log(f'Status ({self.sAcSensor}) GPIO-Pin {self.iGpioPinSensorAc} passt nicht zur Ladeart: {self.sLadeart}')
@@ -1439,7 +1459,7 @@ class CAcOnOff:
 
       #letzter Wert in aXXh ist der SOC, der für die aktuelle Stunde berechnet wurde
       self.dSoc = aXXh[iStunden-1].dSoc
-      print(f'Hypo. (berechneter) SOC um {aXXh[iStunden-1].tStunde}: {self.dSoc}')
+      self.Info2Log(f'Hypo. (berechneter) SOC um {aXXh[iStunden-1].tStunde}: {self.dSoc}')
 
 
    ###### BerechneEinAus(self) ##############################################################################
