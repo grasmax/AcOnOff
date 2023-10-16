@@ -23,7 +23,9 @@
 #             Die Anzahl der Ein- und Ausschaltvorgänge soll minimiert werden, um die Schütze zu schonen.
 #             Das Nachladen soll im Idealfall nur nachts stattfinden, wenn nur die Grundlast (Kühlung, Heizung, Fritzbox) gebraucht wird.
 #             Die Prognose soll mit den historischen Verbrauchs-Werten rechnen, die im Tagesprofil (Tabelle t_tagesprofil) gespeichert sind.
-#             (In Planung: Das Tagesprofil soll Monate und oder Jahreszeiten unterscheiden können. Dafür fehlen weitere Schlüsselspalten)
+#             Oktober 2023: Das Tagesprofil ist nun monatsgenau und speichert auch den Maximalwert des Solarertrags in dieser Stunde des Monats für
+#             die Beschattungsberechnung. Mit der Beschattungsberechnung wird tagesgenau der Zeitbereich berechnet, in dem die von Meteoblue
+#             gelieferten Werte bei der Schaltprognose berücksicht werden.
 #
 #             Ablauf einer Berechnung:
 #                 + Prüfen, ob Jetzt in Stunde mit Solarertrag:
@@ -261,6 +263,8 @@ class CAcOnOff:
       self.nZaehlerStunde = self.tZaehler.hour # 00:00 hat Zählerstunde 0, muss vor Zugriff auf t_tagesprofil auf 24 gesetzt werden
       self.sZaehlerStunde = self.sDate2Str(self.tZaehler) 
       self.tLeer = datetime.datetime(2022,1,1)
+      self.nMonat = tZaehler.month
+
 
       sJetzt = f'Jetzt: {self.tNow}, Zähler: {self.tZaehler}, Zählerstunde: {self.nZaehlerStunde}, Leer: {self.tLeer}'
       self.log.info( sJetzt)
@@ -953,12 +957,32 @@ class CAcOnOff:
          self.log4Tickets.error(sErr)
          self.vScriptAbbruch()
 
+   ###### iLiesIntWertAusMariaDb(self, iDefault, sSelectStmt) ##############################################################################
+   def iLiesIntWertAusMariaDb( self, iDefault, sSelectStmt):
 
-   ###### TagesprofilEinlesen(self, a24h) ##############################################################################
-   def TagesprofilEinlesen(self, a24h):
+         try:
+            cur = self.mdb.cursor()
+            cur.execute( sSelectStmt)
+
+            rec = cur.fetchone()
+            if rec == None:
+               self.Error2Log(f'{sSelectStmt} hat keinen Wert geliefert')
+               return iDefault
+            if rec[0] == None:
+               return iDefault
+            return rec[0]
+            cur.close()
+   
+         except Exception as e:
+            self.Error2Log(f'Fehler in LiesIntWertAusMariaDb({sSelectStmt}): {e}')
+            return iDefault
+
+
+   ###### TagesprofilEinlesen(self, a24h, nMonat) ##############################################################################
+   def TagesprofilEinlesen(self, a24h, nMonat):
          
          try:
-            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from solar2023.t_tagesprofil order by nStunde'
+            sStmt = f'select nStunde, dKwhHaus, dKwhanlage from solar2023.t_tagesprofil where nMonat={nMonat}  order by nStunde'
             cur = self.mdb.cursor()
             cur.execute( sStmt)
 
@@ -988,7 +1012,8 @@ class CAcOnOff:
             if nZStunde == 0:
                nZStunde = 24  # t_tagesprofil-Stundenindex läuft von 1 bis 24
 
-            sStmt = f'select dKwhHaus, dKwhHausMin, dKwhHausMax, dKwhAnlage, dKwhAnlageMin, dKwhAnlageMax from solar2023.t_tagesprofil where nStunde = {nZStunde}'
+            sStmt = f'select dKwhHaus, dKwhHausMin, dKwhHausMax, dKwhAnlage, dKwhAnlageMin, dKwhAnlageMax, dKwhSolarMax \
+                     from solar2023.t_tagesprofil where nMonat = {self.nMonat} and nStunde = {nZStunde}'
 
             cur = self.mdb.cursor()
             cur.execute( sStmt)
@@ -1003,6 +1028,7 @@ class CAcOnOff:
             dKwhAnlage = rec[3]
             dKwhAnlageMin = rec[4]
             dKwhAnlageMax = rec[5]
+            dKwhSolarMax = rec[6]
 
             # Durchschnitt des Hausverbrauchs neu berechnen:
             dKwhHaus = round(( (self.nAnzStunden  * dKwhHaus) + self.ls.dEmL1Diff ) / (nStundenNeu),2) # neuer Durchschnitt
@@ -1051,9 +1077,14 @@ class CAcOnOff:
             if dKwhAnlageMax < dAnlage:
                dKwhAnlageMax = round( dAnlage, 2) # neuer Maxwert
 
+            if dKwhSolarMax < dErtrag:
+               dKwhSolarMax = round( dErtrag, 2) # neuer Maxwert
+
             self.nAnzStunden = nStundenNeu # wird in SchreibeStatusInMariaDb() nach t_charge_state gespeichert
 
-            sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage},dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}  where nStunde = {nZStunde}'
+            sStmt = f'update solar2023.t_tagesprofil set dKwhHaus={dKwhHaus},dKwhAnlage={dKwhAnlage}, \
+                        dKwhHausMin={dKwhHausMin},dKwhHausMax={dKwhHausMax},dKwhAnlageMin={dKwhAnlageMin},dKwhAnlageMax={dKwhAnlageMax}, \
+                        dKwhSolarMax={dKwhSolarMax} where nMonat = {self.nMonat} and nStunde = {nZStunde}'
             cur.execute( sStmt)
             self.mdb.commit()
             cur.close()
@@ -1066,7 +1097,7 @@ class CAcOnOff:
    def SolarprognoseEinlesen(self, aXXh, tEin, iStunden):
 
          try:
-            sVon = self.sDate2Str(tEin)
+            sVon = self.sDate2Str(tEin + datetime.timedelta(hours=1)) # eine Stunde addieren, weil in der Prognosetabelle die backwards-Werte (Prognose bis nn Uhr...)
             tEnd = tEin + datetime.timedelta(hours=iStunden)
             sBis = self.sDate2Str(tEnd)
             sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
@@ -1079,15 +1110,30 @@ class CAcOnOff:
                self.Info2Log(f'Fehler in SolarprognoseEinlesen(): Keine Prognosedaten gefunden in t_prognose für {sVon} bis {sBis}')
                return False
 
+            nLiesAbStunde = self.iLiesIntWertAusMariaDb(11,f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+            nLiesBisStunde = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+            nLiesAbStunde2 = self.iLiesIntWertAusMariaDb(11, f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+            nLiesBisStunde2 = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+
             while rec != None:
+               tProgn = rec[0]
+               nStunde = tProgn.hour
+               if tProgn.month == self.nMonat:
+                  if nStunde < nLiesAbStunde or nLiesBisStunde < nStunde:
+                     rec = cur.fetchone()
+                     continue
+               else:
+                  if nStunde < nLiesAbStunde2 or nLiesBisStunde2 < nStunde:
+                     rec = cur.fetchone()
+                     continue
+
                dProg = 0.0
                for i in range(1,5+1): # rec ist 0-basiert, alle Prognosewerte durchgehen, von P1 bis P24, ersten, der ungleich 0 ist, nehmen
                   if rec[i] != None:
                      dProg = rec[i]
                      break  
 
-               tProgn = rec[0]
-               tDiff = rec[0] - tEin
+               tDiff = tProgn - tEin
                iStunde = self.iGetHours( tDiff)
 
                if iStunde < iStunden:
@@ -1108,13 +1154,24 @@ class CAcOnOff:
    def BerechneMaximaleSocUnterschreitung(self, aXXh, tEin, iStunden):
 
       try:
-         self.SolarprognoseEinlesen( aXXh, tEin, iStunden)  # Solarprognose einlesen, direkt nach aXXh
+         self.SolarprognoseEinlesen( aXXh, tEin, iStunden)  # Solarprognose einlesen, direkt nach aXXh, liest monatsübergreifend
 
          a24h = [0.0 for h in range(24)] # in a24h[0] steht, was bis 01:00 verbraucht wurde!
-         self.TagesprofilEinlesen( a24h)
+         a24hNext = [0.0 for h in range(24)] # in a24h[0] steht, was bis 01:00 verbraucht wurde!
+         
+         self.TagesprofilEinlesen( a24h, self.nMonat)
+
+         # den nächsten Monat auch noch einlesen
+         tEnd = tEin + datetime.timedelta(hours=iStunden)
+         if tEnd.month != self.nMonat:
+            self.TagesprofilEinlesen( a24hNext, tEnd.month) 
+
+         # Stundenzahl bis Monatsende berechnen
+         tLastHourOfThisMonth = datetime.datetime(tEnd.year, tEnd.month,1, 0,0)
+         nHoursThisMonth = self.iGetHours(tLastHourOfThisMonth - tEin)
 
          # Tagesprofil ins XXh-Profil übertragen
-         hStart = tEin.hour
+         hStart = tEin.hour + 1 # +1 weil tEin den Beginn der ersten Stunde definiert, die Verbrauchswerte ab mit bis-Stunde gespeichert sind
          hStopp = hStart + iStunden
          hXX = 0
          for h in range( hStart, hStopp):
@@ -1122,8 +1179,13 @@ class CAcOnOff:
             if hStunde == 0:
                hStunde = 24
             iIdxStunde = hStunde - 1
-            print(f'h: {h}: hStunde: {hStunde}: hXX: {hXX}, a24h[{iIdxStunde}]: {a24h[iIdxStunde]}')
-            aXXh[hXX].dVerbrauch = a24h[iIdxStunde]
+
+            if nHoursThisMonth <= hXX:
+               print(f'h: {h}: hStunde: {hStunde}: hXX: {hXX}, a24hNext[{iIdxStunde}]: {a24hNext[iIdxStunde]}')
+               aXXh[hXX].dVerbrauch = a24hNext[iIdxStunde]
+            else:
+               print(f'h: {h}: hStunde: {hStunde}: hXX: {hXX}, a24h[{iIdxStunde}]: {a24h[iIdxStunde]}')
+               aXXh[hXX].dVerbrauch = a24h[iIdxStunde]
             hXX += 1
          
 
@@ -1138,6 +1200,7 @@ class CAcOnOff:
          # aXXh[0] nicht wegnschreiben! Denn auf  aXXh[0] steht der aktuelle SOC!
          # self.SchreibePrognoseWertInMariaDb( aXXh[0].tStunde, aXXh[0].dSoc)
 
+         dSocMin = 100.0
          for h in range( 1, iStunden):
             dKapaDiff = aXXh[h].dSolarPrognose - aXXh[h].dVerbrauch
             dSocDiff = round(dKapaDiff * dSoc100 / dKapa100, 2)
@@ -1149,9 +1212,11 @@ class CAcOnOff:
             print(f'aXXh[{h}]: {aXXh[h].tStunde}:  {aXXh[h].dSoc}') # damit nicht das Log zumüllen, es reicht aus, dass diese Werte im sh-Protokoll stehen
             self.SchreibePrognoseWertInMariaDb( aXXh[h].tStunde, aXXh[h].dSoc)
 
-            if( aXXh[h].dSoc < float(self.nSocMin)):
-               dMaxSocUnterschreitung = round(float(self.nSocMin) - aXXh[h].dSoc, 2)
+            if  (aXXh[h].dSoc < float(self.nSocMin) and  aXXh[h].dSoc < dSocMin):
+                 dSocMin = aXXh[h].dSoc
 
+         if dSocMin < 100.0:
+            dMaxSocUnterschreitung = round(float(self.nSocMin) - dSocMin, 2)
 
          self.mdb.commit()
          self.Info2Log(f'Prognose-Werte in DB eingetragen.')
@@ -1494,6 +1559,15 @@ ac = CAcOnOff()                           # Konfigdatei lesen
 
 ac.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
 ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log schreiben
+
+# erster "Unittest", Sollwerte und Vergleich fehlt noch ;)
+#ac.nMonat = 11
+#tEin = datetime.datetime(2023,ac.nMonat,30,12,0)
+#ac.nAnzPrognoseStunden += 1 # weil auf [0] nur der aktuelle SOC liegt
+#ac.aProgStd = [CPrognoseStunde(tEin, h) for h in range(ac.nAnzPrognoseStunden)]
+#ac.aProgStd[0].dSoc = 5
+#dSocMaxUnter = ac.BerechneMaximaleSocUnterschreitung( ac.aProgStd, tEin, ac.nAnzPrognoseStunden) 
+
 
 ac.HoleDbusWerteVomCerbo()                # Werte aus der Anlage lesen, wenn das nicht möglich ist, die Prognose ab dem letzten bekannten SOC rechnen  
 ac.HoleLadeartAusDb()                     # In welchem Zustand ist das Ladegerät?
