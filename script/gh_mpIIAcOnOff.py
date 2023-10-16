@@ -1097,6 +1097,12 @@ class CAcOnOff:
    def SolarprognoseEinlesen(self, aXXh, tEin, iStunden):
 
          try:
+            nLiesAbStunde = self.iLiesIntWertAusMariaDb(11,f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+            nLiesBisStunde = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+            nLiesAbStunde2 = self.iLiesIntWertAusMariaDb(11, f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+            nLiesBisStunde2 = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+
+
             sVon = self.sDate2Str(tEin + datetime.timedelta(hours=1)) # eine Stunde addieren, weil in der Prognosetabelle die backwards-Werte (Prognose bis nn Uhr...)
             tEnd = tEin + datetime.timedelta(hours=iStunden)
             sBis = self.sDate2Str(tEnd)
@@ -1110,10 +1116,6 @@ class CAcOnOff:
                self.Info2Log(f'Fehler in SolarprognoseEinlesen(): Keine Prognosedaten gefunden in t_prognose für {sVon} bis {sBis}')
                return False
 
-            nLiesAbStunde = self.iLiesIntWertAusMariaDb(11,f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
-            nLiesBisStunde = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
-            nLiesAbStunde2 = self.iLiesIntWertAusMariaDb(11, f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
-            nLiesBisStunde2 = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
 
             while rec != None:
                tProgn = rec[0]
@@ -1167,7 +1169,7 @@ class CAcOnOff:
             self.TagesprofilEinlesen( a24hNext, tEnd.month) 
 
          # Stundenzahl bis Monatsende berechnen
-         tLastHourOfThisMonth = datetime.datetime(tEnd.year, tEnd.month,1, 0,0)
+         tLastHourOfThisMonth = datetime.datetime(tEnd.year, self.nMonat + 1, 1, 0,0) # + 1  weil 24:00 diesen Monat simlutiert wird durch 1. des nächsten Monats 00:00
          nHoursThisMonth = self.iGetHours(tLastHourOfThisMonth - tEin)
 
          # Tagesprofil ins XXh-Profil übertragen
