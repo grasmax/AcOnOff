@@ -55,15 +55,18 @@ COLLATE='utf8mb4_general_ci'
 ENGINE=InnoDB
 ;
 
+# für jeden Monat und jede Stunde ein Profil für den Verbrauch und den maximalen Solarertrag anlegen:
 CREATE TABLE `t_tagesprofil` (
-	`nStunde` INT NOT NULL COMMENT '1..24. 1..bis 01:00 wurde etwas verbraucht',
+	`nMonat` INT(11) NOT NULL COMMENT 'n= 1-12, 1...Januar, 12...Dezember',
+	`nStunde` INT(11) NOT NULL COMMENT 'n= 1-24, n bedeutet, die Werte in den anderen Spalten geben an, was bis n Uhr verbraucht wurde.',
 	`dKwhHaus` DOUBLE NULL DEFAULT NULL COMMENT 'Durchschnitts-Verbrauch der Verbraucher im Solarteil der Hausinstallation in kWh',
 	`dKwhAnlage` DOUBLE NULL DEFAULT NULL COMMENT 'Durchschnittlicher Eigenverbrauch der Anlage in kWh',
 	`dKwhHausMin` DOUBLE NULL DEFAULT NULL COMMENT 'Minimaler der Verbraucher im Solarteil der Hausinstallation in kWh',
 	`dKwhHausMax` DOUBLE NULL DEFAULT NULL COMMENT 'Maximaler der Verbraucher im Solarteil der Hausinstallation in kWh',
 	`dKwhAnlageMin` DOUBLE NULL DEFAULT NULL COMMENT 'Minimaler Eigenverbrauch der Anlage in kWh',
 	`dKwhAnlageMax` DOUBLE NULL DEFAULT NULL COMMENT 'Maximaler Eigenverbrauch der Anlage in kWh',
-	PRIMARY KEY (`nStunde`) USING BTREE
+	`dKwhSolarMax` DOUBLE NULL DEFAULT NULL COMMENT 'Maximaler Solarertrag in dieser Stunde des Monats als Grundlage für die Beschattungsberechnung',
+	PRIMARY KEY (`nMonat`, `nStunde`) USING BTREE
 )
 COMMENT='24 Datensätze für jede Stunde eines Tages'
 COLLATE='utf8mb4_general_ci'
@@ -94,7 +97,59 @@ INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`,
 INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (22, 0.1, 0.02, 0.1, 0.3, 0.025, 0);
 INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (23, 0.1, 0.02, 0.1, 0.3, 0.025, -0.1);
 INSERT INTO `t_tagesprofil` (`nStunde`, `dKwhHaus`, `dKwhAnlage`, `dKwhHausMin`, `dKwhHausMax`, `dKwhAnlageMin`, `dKwhAnlageMax`) VALUES (24, 0.14, 0.03, 0.1, 0.3, 0.025, -0.1);
+update t_tagesprofil set nMonat = 0, dKwhSolarMax=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 1 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 2 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 3 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 4 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 5 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 6 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 7 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 8 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 9 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 10 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 11 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
+insert t_tagesprofil  (nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax)
+SELECT 12 AS nMonat,nStunde,dKwhHaus,dKwhAnlage,dKwhHausMin,dKwhHausMax,dKwhAnlageMin,dKwhAnlageMax,dKwhSolarMax FROM t_tagesprofil WHERE nMonat=0;
+
 SELECT * FROM t_tagesprofil;
+
+# Mit dieser Anweisung kann die Spalte für den maximalen Solarertrag im Tagesprofil aus der Tabelle mit den Anlagendaten gefüllt werden
+UPDATE t_tagesprofil p
+INNER JOIN
+(SELECT DATE_FORMAT(s.tStunde , '%c') AS nMonat,DATE_FORMAT(s.tStunde , '%H') AS nStunde ,max(dErtrag) as dErtrag 
+FROM t_victdbus_stunde s GROUP BY DATE_FORMAT(s.tStunde , '%c'), DATE_FORMAT(s.tStunde , '%H') ) AS s2
+on
+  p.nMonat = s2.nMonat AND p.nStunde = s2.nStunde
+SET
+	p.dKwhSolarMax = s2.dErtrag
+
+
+
+
 
 CREATE TABLE `t_charge_state` (
 	`eLadeart` VARCHAR(20) NULL DEFAULT NULL COMMENT 'Aus...Stromzufuhr ist ausgeschaltet (kein Laden), Voll...Absorbtions/Ausgleichsladung bis auf 100%, Nach..Batterie unter Beachtung der Solarprognose zwischen 20 und 90 % halten' COLLATE 'utf8mb4_general_ci',
@@ -130,7 +185,7 @@ ENGINE=InnoDB
 ;
 
 CREATE TABLE `t_prognose` (
-	`Stunde` DATETIME NOT NULL COMMENT 'Datum und Uhrzeit der  Ertrags-Stunde',
+	`Stunde` DATETIME NOT NULL COMMENT 'Datum und Uhrzeit der Stunde; da die backwards-Datenreihe übernommen wird, geben die P-Werte wieder, wieviele kWh bis zu dieser Stunde erwartet werden',
 	`P24` DOUBLE NULL DEFAULT NULL,
 	`P12` DOUBLE NULL DEFAULT NULL,
 	`P6` DOUBLE NULL DEFAULT NULL,
