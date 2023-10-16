@@ -51,6 +51,9 @@ class CMbSolarForecast:
          self.sLongi = Settings['Modulausrichtung']['Longi'] # z.B. "13.4" # Länge
          self.sLati = Settings['Modulausrichtung']['Lati'] # z.B. "52.6" # Breite
 
+         self.sSpeichernVon = Settings['Moduldaten']['SpeichernVon'] # erste Stunde
+         self.sSpeichernBis = Settings['Moduldaten']['SpeichernBis'] # letzte Stunde
+
          self.sDateipfad = Settings['Datei']['Pfad'] # z.B. "E:\dev_priv\python_svn\solarprognose1\webreq1\meteoblue\mb_pvpro_"
 
          self.MariaIp = Settings['MariaDb']['IP']
@@ -163,7 +166,11 @@ class CMbSolarForecast:
 # Differenz zwischen den _instant und _backward-Datenreihen siehe https://content.meteoblue.com/en/research-education/specifications/weather-variables/radiation
 # „The backwards value will be the average…So, for production, the backwards value is definitely more useful.”
 # 
-         sPwd = "gibts bei MeteoBlue"
+#sBytes = base64.b64encode("<mb_api_key>".encode("utf-8"))
+#s = sPwdCode.decode("utf-8")
+#sPwd = base64.b64decode(sPwdCode.decode("utf-8"))
+         sPwdCode = 'NTE3MDNjMjBhN2Iz'
+         sPwd = base64.b64decode(sPwdCode).decode("utf-8")
 #OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
 
 #Um Calls/Credits zu sparen kann das Script ab hier auch mit einer vorher gespeicherten Datei getestet werden:
@@ -177,6 +184,7 @@ class CMbSolarForecast:
          response = requests.get(api_url)
          data = response.json()
 
+
          #für Vergleichszwecke auch noch als Datei speichern
          sPretty = json.dumps( data, sort_keys=True, indent=2)
          #sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\meteoblue\\mb_pvpro_" + self.sNow + ".json"
@@ -186,8 +194,10 @@ class CMbSolarForecast:
          f.write( sPretty)
          f.close()
 
+
          modelrun = data['metadata']['modelrun_utc']
          modelrun_upd = data['metadata']['modelrun_updatetime_utc']
+
 
          # Metadaten der Abfrage speichern
          cur = self.mdb.cursor()
@@ -206,7 +216,7 @@ class CMbSolarForecast:
             if (tStunde <= self.tNow) :
                continue; # nur die Zukunft speichern
 
-            if (tStunde.hour < 8 or 17 < tStunde.hour  ) :
+            if (tStunde.hour < self.sSpeichernVon or self.sSpeichernBis < tStunde.hour  ) :
                continue; # nur die für den Ertrag relevanten Stunden des Tages speichern
 
    
@@ -227,13 +237,14 @@ class CMbSolarForecast:
             else:
                continue
 
-            dkWh = data['data_1h']['pvpower_backwards'][t]
+            dkWh = data['data_1h']['pvpower_backwards'][t] # Stunde scheint nach Auskunft von MB vom 17.5.2023 zu bedeuten "Ertrag bis zu dieser Stunde"
 
             stmt = "insert into solar2023.t_prognose (stunde, " + sField + ") values(CONVERT('{0}',datetime), {1}) ON DUPLICATE KEY UPDATE " + sField + "={1}" 
             stmt = stmt.format(sStunde, dkWh)
             print(stmt)
             cur.execute( stmt)
-           
+
+          
       except Exception as e:
          self.Error2Log(f'Fehler in HolePrognose(): {e}')
          self.vScriptAbbruch()
