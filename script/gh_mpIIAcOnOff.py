@@ -1654,7 +1654,7 @@ ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log
 #ac.aProgStd[0].dSoc = 5
 #dSocMaxUnter = ac.BerechneMaximaleSocUnterschreitung( ac.aProgStd, tEin, ac.nAnzPrognoseStunden) 
 
-# zweiter....
+# zweiter Test...
 #ac.mail.EmailVersenden(f'Test! Problem beim Berechnen der Solarprognose. Script abgebrochen!', f'Grund:', ac.TestCode)
 #ac.vEndeNormal()
 #quit()
