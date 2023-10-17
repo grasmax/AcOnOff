@@ -168,6 +168,15 @@ import json
 import mariadb
 import time
 
+import smtplib
+from email.mime.text import MIMEText
+
+from Crypto.Cipher import AES
+from Crypto import Random
+
+
+
+
 # ist unter Windows logischerweise nicht ausführbar (keine GPIO-Pins...)
 #import RPi.GPIO as GPIO 
 # für den Test unter windows liegt eine Hilfsklasse gleichen Namens in gpioersatz.py:
@@ -185,7 +194,7 @@ class CPrognoseStunde:
       self.dSoc = 0.0   # auf Basis des aktuellen SOC, der voraussichtlichen Verbrauchswerte und der Solarvorhersage berechneter Wert
 
 
-###### CLetzteStunde  { ##############################################################################
+###### CLetzteStunde   ##############################################################################
 class CLetzteStunde:
    # Werte der letzten Stunde aus t_victdbus_stunde
    def __init__(self):
@@ -203,7 +212,74 @@ class CLetzteStunde:
       self.dErtragDiff = 0.0 
       self.dEmL1Diff  = 0.0  
       self.dEmL2Diff  = 0.0  
+
+###### CAesCipher    ##############################################################################
+#  https://stackoverflow.com/questions/12524994/encrypt-and-decrypt-using-pycrypto-aes-256 / 258
+#    a = CAesCipher()
+#    pwdcode = a.encrypt('tralalala')
+#    print(pwdcode)
+#    pwd = a.decrypt(pwdcode)
+#    print(pwd)
+BS = 16
+pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS).encode()
+unpad = lambda s: s[:-ord(s[len(s)-1:])]
+class CAesCipher:
+
+   def __init__( self, TestCode):
+        self.key = bytes(TestCode, 'utf-8')
+
+   def encrypt( self, Text ):
+      encText = Text.encode()
+      raw = pad(encText)
+
+      iv = Random.new().read( AES.block_size )
+      cipher = AES.new( self.key, AES.MODE_CBC, iv )
+
+      ce = base64.b64encode( iv + cipher.encrypt( raw ) )
+      print (ce)
+      return ce
+
+   def decrypt( self, Text ):
+      enc = base64.b64decode(Text)
+      iv = enc[:16]
+      cipher = AES.new(self.key, AES.MODE_CBC, iv )
+      dec = cipher.decrypt( enc[16:] )
+      u = unpad(dec)
+      return u.decode("utf-8") 
+
+
+
+###### CMailVersand   ##############################################################################
+class CMailVersand:
+   def __init__(self, sSmtpPwdCode, Von, An):
+      ### Email-Absender bei Alarm
+      self.AlarmEmailAbsender = "solarraspi@grasmax.de"
+
+      ### Email-Empfaenger bei Alarm
+      self.AlarmEmailEmpfaenger  = ['max@grasmax.de','zille@grasmax.de','email@katjaherzog.de']
       
+      self.SmtpPwdCode = sSmtpPwdCode
+      self.Von = Von
+      self.An = An
+
+   ###### EmailVersenden(self, sBetreff, sText) ##############################################################################
+   def EmailVersenden(self, sBetreff, sText, sTestCode):
+
+    server = smtplib.SMTP_SSL('smtp.ionos.de',465,)
+    # server.set_debuglevel(1)
+
+    a = CAesCipher( sTestCode)
+    server.login('max@grasmax.de', a.decrypt(self.SmtpPwdCode))
+    
+    message = MIMEText(sText, 'plain')
+    message['Subject'] = sBetreff
+    message['From'] = self.AlarmEmailAbsender
+    message['To'] = ", ".join(self.AlarmEmailEmpfaenger)
+    
+    server.sendmail( self.AlarmEmailAbsender, self.AlarmEmailEmpfaenger,  message.as_string())
+    print(message.as_string()) 
+    server.quit()
+
 
 ###### CAcOnOff  { ##############################################################################
 class CAcOnOff:
@@ -251,7 +327,6 @@ class CAcOnOff:
       self.log4Tickets = logging.getLogger('log2')
       
       self.log.info('Programmstart')
-
 
       # Zählerstunde initialisieren
       self.tNow = datetime.datetime.now()
@@ -346,9 +421,10 @@ class CAcOnOff:
 
          self.MariaIp = Settings['MariaDb']['IP']
          self.MariaUser = Settings['MariaDb']['User']
-         sPwdCode = Settings['MariaDb']['PwdCode']
 
-         self.MariaPwd = base64.b64decode(sPwdCode).decode("utf-8")
+         self.MariaPwdCode = Settings['Pwd']['MariaDb']
+         self.mail = CMailVersand(Settings['Pwd']['Smtp'], Settings['Mail']['Von'],Settings['Mail']['An'])
+         self.TestCode = Settings['Pwd']['Test']
 
       except Exception as e:
          self.log.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
@@ -402,15 +478,18 @@ class CAcOnOff:
       
       bConn = False
       bConnLog = False
+
+      a = CAesCipher(self.TestCode)
+
       for i in range(1,10+1):
          try:
-            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
+            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=str(a.decrypt(self.MariaPwdCode)))
             bConn = True
          except Exception as e:
             self.log.error(f'Fehler in mariadb.connect(): {e}')
 
          try:
-            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
+            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=str(a.decrypt(self.MariaPwdCode)))
             bConnLog = True
 
          except Exception as e:
@@ -421,8 +500,7 @@ class CAcOnOff:
          time.sleep(2)
 
       if bConnLog != True or bConn != True:
-         self.log.error(f'Fehler in VerbindeMitMariaDb(): Conn: {bConn}, ConnLog: {bConnLog}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler in VerbindeMitMariaDb(): Conn: {bConn}, ConnLog: {bConnLog}')
 
 
       # ab hier Logging in die MariaDb-Tabelle t_charge_log
@@ -439,12 +517,12 @@ class CAcOnOff:
 
 
    ###### vScriptAbbruch(self) ##############################################################################
-   def vScriptAbbruch(self):
+   def vScriptAbbruch(self, sErr):
    #Script beenden und aufräumen
-      self.Error2Log('Abbruch mit mdb-close')
+      self.Error2Log(f'Abbruch mit mdb-close wegen: {sErr}')
       self.mdb.close()
       self.mdbLog.close()
- #$$ hier müsste noch eine email/sms verschickt werden!
+      self.mail.EmailVersenden(f'Problem beim Berechnen der Solarprognose. Script abgebrochen!', f'Grund: {sErr}', self.TestCode)
       quit()
 
 
@@ -457,13 +535,15 @@ class CAcOnOff:
          cur.execute( sStmt)
          self.mdbLog.commit()
          sOut = f'Logeintrag: {eTyp}: {eLadeart}: {sText}'
-         self.log.info(sOut)
+         if eTyp == "info":
+            self.log.info(sOut)
+         else:
+            self.log.error(sOut)
          print(sOut)
          
 
       except Exception as e:
-         self.log.error(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in t_charge_log: {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler beim insert ({eTyp},{eLadeart},{sText}) in t_charge_log: {e}')
 
 
    ###### Info2Log(self, sText) ##############################################################################
@@ -692,8 +772,7 @@ class CAcOnOff:
          cur.execute( sStmt)
          rec = cur.fetchone()
          if rec == None:
-            self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: rec == None')
-            self.vScriptAbbruch()
+            self.vScriptAbbruch(f'Fehler bei select eLadeart from t_charge_state: rec == None')
 
          sArt = rec[0].replace("\r\n","",1)
          self.tLetzterAusgleich = rec[1]
@@ -704,18 +783,15 @@ class CAcOnOff:
          if sArt == self.sLadeartAus or sArt == self.sLadeartAusgleichen or sArt == self.sLadeartNachladen:
             self.sLadeart = sArt
          else:
-            self.Error2Log(f'Fehler beim Lesen der eLadeart from mariadb.DB1.t_charge_state: Unbekannte Ladeart: {sArt}')
-            self.vScriptAbbruch()
+            self.vScriptAbbruch(f'Fehler beim Lesen der eLadeart from mariadb.DB1.t_charge_state: Unbekannte Ladeart: {sArt}')
 
          if self.tLetzterAusgleich == None:
-            self.Error2Log(f'Fehler: t_charge_state.tLetzterAusgleich noch nicht initialisiert.')
-            self.vScriptAbbruch()
+            self.vScriptAbbruch(f'Fehler: t_charge_state.tLetzterAusgleich noch nicht initialisiert.')
 
          self.Info2Log(f'Ladeart: {self.sLadeart}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler bei select eLadeart from t_charge_state: {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler bei select eLadeart from t_charge_state: {e}')
 
 
    ###### HoleLetzteStundeAusDb(self) ##############################################################################
@@ -778,8 +854,7 @@ class CAcOnOff:
    ###### BerechneLadungsEnde(self, dSocSoll) ##############################################################################
    def BerechneLadungsEnde(self, dSocSoll):
       if self.nMaxChargeCurr == 0.0:
-         self.Error2Log(f'Fehler in BerechneLadungsEnde(): self.nMaxChargeCurr == {self.nMaxChargeCurr}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler in BerechneLadungsEnde(): self.nMaxChargeCurr == {self.nMaxChargeCurr}')
 
       # Berechnung in Abhängigkeit von Anzahl Batterien, Ah der Batterien, SOC, Ladestrom und Eigenverbrauch
       nKapa100 = self.nBattAnz * self.nBattKapa # Juni 2023: 4*50Ah = 200Ah
@@ -810,6 +885,12 @@ class CAcOnOff:
 #      return True           # es darf geladen werden
 
 
+      nLiesAbStunde = self.iLiesIntWertAusMariaDb(11,f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+      nLiesBisStunde = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat} and dKwhSolarMax >= 0.1')
+      nLiesAbStunde2 = self.iLiesIntWertAusMariaDb(11, f'select MIN(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+      nLiesBisStunde2 = self.iLiesIntWertAusMariaDb(14, f'select MAX(nStunde) from solar2023.t_tagesprofil where nMonat={self.nMonat+1} and dKwhSolarMax >= 0.1')
+
+
       sVon = self.sDate2Str(self.tEin)
       sBis = self.sDate2Str(tSollEnde)
 
@@ -826,6 +907,18 @@ class CAcOnOff:
             return True           # es darf geladen werden
 
          while rec != None:
+            tProgn = rec[0]
+            nStunde = tProgn.hour
+            if tProgn.month == self.nMonat:
+               if nStunde < nLiesAbStunde or nLiesBisStunde < nStunde:
+                  rec = cur.fetchone()
+                  continue
+            else:
+               if nStunde < nLiesAbStunde2 or nLiesBisStunde2 < nStunde:
+                  rec = cur.fetchone()
+                  continue
+
+
             dProg = 0.0
             for i in range(1,5+1):
                if rec[i] != None:
@@ -833,7 +926,7 @@ class CAcOnOff:
                   break
 
             if dProg > self.dMinSolarPrognoseStunde:               
-               self.tAus = rec[0] # Einschränkung durch die Solarprognose
+               self.tAus = tProgn # Einschränkung durch die Solarprognose
                if self.tEin == self.tAus:
                   self.Info2Log(f'Einschränkung durch die Solarprognose: es darf nicht geladen werden')
                   return False # es darf nicht geladen werden
@@ -920,9 +1013,8 @@ class CAcOnOff:
 
       except Exception as e:
          sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_ein}, {self.sLadeart}, Ein: {sVonStunde}, Aus: {sBisStunde}): {e}'
-         self.Error2Log(sErr)
          self.log4Tickets.error(sErr)
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(sErr)
 
 
    ###### LadenAusschalten(self) ##############################################################################
@@ -953,9 +1045,8 @@ class CAcOnOff:
 
       except Exception as e:
          sErr = f'Fehler beim insert in t_charge_ticket mit ({self.sSchaltart_aus}, {self.sLadeart}, Aus: {sAusStunde}): {e}'
-         self.Error2Log(sErr)
          self.log4Tickets.error(sErr)
-         self.vScriptAbbruch()
+         self.vScriptAbbruch( sErr)
 
    ###### iLiesIntWertAusMariaDb(self, iDefault, sSelectStmt) ##############################################################################
    def iLiesIntWertAusMariaDb( self, iDefault, sSelectStmt):
@@ -988,8 +1079,7 @@ class CAcOnOff:
 
             rec = cur.fetchone()
             if rec == None:
-               self.Error2Log(f'Kein Tagesprofil gefunden in t_tagesprofil')
-               self.vScriptAbbruch()
+               self.vScriptAbbruch(f'Kein Tagesprofil gefunden in t_tagesprofil')
             t = 0
             while rec != None:
                a24h[t] = rec[1] + rec[2]
@@ -1225,8 +1315,7 @@ class CAcOnOff:
 
 
       except Exception as e:
-         self.Error2Log(f'Ausnahme in BerechneMaximaleSocUnterschreitung( {tEin}, {iStunden}): {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Ausnahme in BerechneMaximaleSocUnterschreitung( {tEin}, {iStunden}): {e}')
 
       return dMaxSocUnterschreitung
 
@@ -1244,12 +1333,6 @@ class CAcOnOff:
             self.Info2Log(f'Nachladen nötig, weil SOC unter {self.nSocMin}%. Wenn dann noch Sonne dazukommt, wird das toleriert.')
             return True 
 
-         # Prüfen, ob Einschalten im verbotenen Bereich liegt
-         sVerbot = self.bLiegtEinschaltenImVerbot()
-         if 0 < len (sVerbot) :
-            self.Info2Log(f'Nachladen nicht möglich, weil Einschalt-Stunde {self.tEin} im verbotenen Bereich ({sVerbot}) liegt')
-            return False 
-
          # Vektor anlegen und füllen: {self.nAnzPrognoseStunden} x Verbrauch(t_tagesprofil) + Solarertrag(t_prognose) + SOC(berechnet)
          # dabei die maximale Unterschreitung des SOCMin ermitteln und zurückliefern
          self.aProgStd[0].dSoc = self.dSoc
@@ -1261,6 +1344,13 @@ class CAcOnOff:
             return False 
 
          self.Info2Log(f'Nachladen nötig, weil die untere SOC-Grenze innerhalb der nächsten {self.nAnzPrognoseStunden-1} Stunden unterschritten würde: {self.nSocMin} --> {dSocMaxUnter}')
+
+         # Prüfen, ob Einschalten im verbotenen Bereich liegt
+         sVerbot = self.bLiegtEinschaltenImVerbot()
+         if 0 < len (sVerbot) :
+            self.Info2Log(f'Nachladen nicht möglich, weil Einschalt-Stunde {self.tEin} im verbotenen Bereich ({sVerbot}) liegt')
+            return False 
+
 
          # Wie lange wird das Nachladen dauern? 
          tSollEnde = self.BerechneLadungsEnde( dSocSoll=self.dSoc + dSocMaxUnter)
@@ -1353,8 +1443,7 @@ class CAcOnOff:
          self.Info2Log(f'Dbus-Werte in DB aktualisiert: {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim insert in t_victdbus_stunde mit {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}: {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler beim insert in t_victdbus_stunde mit {self.dSoc}, {self.dErtragAbs}, {self.dEmL1Abs}, {self.dEmL2Abs}: {e}')
 
    ###### SchreibePrognoseWertInMariaDb(self, tStunde, dSoc) ##############################################################################
    def SchreibePrognoseWertInMariaDb(self, tStunde, dSocPrognose):
@@ -1371,8 +1460,7 @@ class CAcOnOff:
          cur.close()
    
       except Exception as e:
-         self.Error2Log(f'Fehler beim Prognose-insert in t_victdbus_stunde mit {sStunde}, {dSocPrognose}: {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler beim Prognose-insert in t_victdbus_stunde mit {sStunde}, {dSocPrognose}: {e}')
          
    ###### SchreibeStatusInMariaDb(self) ##############################################################################
    def SchreibeStatusInMariaDb(self):
@@ -1394,8 +1482,7 @@ class CAcOnOff:
 
 
       except Exception as e:
-         self.Error2Log(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler beim update von t_charge_state mit ({self.sLadeart}): {e}')
 
 
    ###### HoleGpioStatus(self, iPin, bMitInit) ##############################################################################
@@ -1425,12 +1512,12 @@ class CAcOnOff:
             self.Info2Log(f'Pin {self.iGpioPinSensorAc} hat Wert {iStat1}-->{sPinStat}')
             return sPinStat
          else:
-            self.Error2Log(f'GPIO-Status Pin {self.iGpioPinSensorAc} nicht eindeutig:  Versuch1: {iStat1}, Versuch2: {iStat2}, Versuch3: {iStat3},')
-         self.vScriptAbbruch()
+            self.vScriptAbbruch(f'GPIO-Status Pin {self.iGpioPinSensorAc} nicht eindeutig:  Versuch1: {iStat1}, Versuch2: {iStat2}, Versuch3: {iStat3}')
 
       except Exception as e:
-         self.Error2Log(f'Fehler in HoleGpioStatus(): {e}')
-#$$      self.vScriptAbbruch()
+         sErr = f'Fehler in HoleGpioStatus(): {e}'
+         self.Error2Log( sErr)
+#$$      self.vScriptAbbruch(sErr)
          return -1
 
 
@@ -1482,12 +1569,10 @@ class CAcOnOff:
          if bErledigt == True:
             self.Info2Log(f'Neuer Status Stromstoßschalter/Pin {self.iGpioPinSensorAc}: {sPinStat}')
          else:
-            self.Error2Log(f'Fehler in GpioSendeSchaltimpuls(): Falscher Status des Stromstoßschalters: Soll: {sEinAus}, Ist: {sPinStat}')
-            self.vScriptAbbruch()
+            self.vScriptAbbruch(f'Fehler in GpioSendeSchaltimpuls(): Falscher Status des Stromstoßschalters: Soll: {sEinAus}, Ist: {sPinStat}')
 
       except Exception as e:
-         self.Error2Log(f'Ausnahme in GpioSendeSchaltimpuls():  {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Ausnahme in GpioSendeSchaltimpuls():  {e}')
 
 
    ###### SchalteGpio(self) ##############################################################################
@@ -1506,8 +1591,7 @@ class CAcOnOff:
             self.GpioSendeSchaltimpuls(self.sSchaltart_aus)
 
       else:
-         self.Error2Log(f'Fehler in SchalteGpio: Unbekannte Ladeart: {self.sLadeart}:  {e}')
-         self.vScriptAbbruch()
+         self.vScriptAbbruch(f'Fehler in SchalteGpio: Unbekannte Ladeart: {self.sLadeart}:  {e}')
 
    ###### BerechneHypoSoc(self) ##############################################################################
    # Wenn keine Verbindung via ssh/dbus zum Cerbo besteht, kann der aktuelle SOC nicht ermittelt werden.
@@ -1570,6 +1654,10 @@ ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log
 #ac.aProgStd[0].dSoc = 5
 #dSocMaxUnter = ac.BerechneMaximaleSocUnterschreitung( ac.aProgStd, tEin, ac.nAnzPrognoseStunden) 
 
+# zweiter....
+#ac.mail.EmailVersenden(f'Test! Problem beim Berechnen der Solarprognose. Script abgebrochen!', f'Grund:', ac.TestCode)
+#ac.vEndeNormal()
+#quit()
 
 ac.HoleDbusWerteVomCerbo()                # Werte aus der Anlage lesen, wenn das nicht möglich ist, die Prognose ab dem letzten bekannten SOC rechnen  
 ac.HoleLadeartAusDb()                     # In welchem Zustand ist das Ladegerät?
