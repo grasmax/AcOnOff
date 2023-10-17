@@ -265,11 +265,11 @@ class CMailVersand:
    ###### EmailVersenden(self, sBetreff, sText) ##############################################################################
    def EmailVersenden(self, sBetreff, sText, sTestCode):
 
-    server = smtplib.SMTP_SSL('smtp.ionos.de',465,)
+    server = smtplib.SMTP_SSL('smtp.cccc.de',465,)
     # server.set_debuglevel(1)
 
     a = CAesCipher( sTestCode)
-    server.login('max@grasmax.de', a.decrypt(self.SmtpPwdCode))
+    server.login('xx@zz.de', a.decrypt(self.SmtpPwdCode))
     
     message = MIMEText(sText, 'plain')
     message['Subject'] = sBetreff
