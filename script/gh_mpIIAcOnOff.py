@@ -215,11 +215,6 @@ class CLetzteStunde:
 
 ###### CAesCipher    ##############################################################################
 #  https://stackoverflow.com/questions/12524994/encrypt-and-decrypt-using-pycrypto-aes-256 / 258
-#    a = CAesCipher()
-#    pwdcode = a.encrypt('tralalala')
-#    print(pwdcode)
-#    pwd = a.decrypt(pwdcode)
-#    print(pwd)
 BS = 16
 pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS).encode()
 unpad = lambda s: s[:-ord(s[len(s)-1:])]
@@ -251,13 +246,9 @@ class CAesCipher:
 
 ###### CMailVersand   ##############################################################################
 class CMailVersand:
-   def __init__(self, sSmtpPwdCode, Von, An):
-      ### Email-Absender bei Alarm
-      self.AlarmEmailAbsender = "solarraspi@grasmax.de"
-
-      ### Email-Empfaenger bei Alarm
-      self.AlarmEmailEmpfaenger  = ['max@grasmax.de','zille@grasmax.de','email@katjaherzog.de']
+   def __init__(self, sSmtpUser, sSmtpPwdCode, Von, An):
       
+      self.SmtpUser = sSmtpUser
       self.SmtpPwdCode = sSmtpPwdCode
       self.Von = Von
       self.An = An
@@ -265,18 +256,18 @@ class CMailVersand:
    ###### EmailVersenden(self, sBetreff, sText) ##############################################################################
    def EmailVersenden(self, sBetreff, sText, sTestCode):
 
-    server = smtplib.SMTP_SSL('smtp.cccc.de',465,)
+    server = smtplib.SMTP_SSL('smtp.ionos.de',465,)
     # server.set_debuglevel(1)
 
     a = CAesCipher( sTestCode)
-    server.login('xx@zz.de', a.decrypt(self.SmtpPwdCode))
+    server.login( self.SmtpUser, a.decrypt(self.SmtpPwdCode))
     
     message = MIMEText(sText, 'plain')
     message['Subject'] = sBetreff
-    message['From'] = self.AlarmEmailAbsender
-    message['To'] = ", ".join(self.AlarmEmailEmpfaenger)
+    message['From'] = self.Von
+    message['To'] = ", ".join(self.An)
     
-    server.sendmail( self.AlarmEmailAbsender, self.AlarmEmailEmpfaenger,  message.as_string())
+    server.sendmail( self.Von, self.An,  message.as_string())
     print(message.as_string()) 
     server.quit()
 
@@ -420,10 +411,10 @@ class CAcOnOff:
  
 
          self.MariaIp = Settings['MariaDb']['IP']
-         self.MariaUser = Settings['MariaDb']['User']
+         self.MariaUserCode = Settings['MariaDb']['User']
 
          self.MariaPwdCode = Settings['Pwd']['MariaDb']
-         self.mail = CMailVersand(Settings['Pwd']['Smtp'], Settings['Mail']['Von'],Settings['Mail']['An'])
+         self.mail = CMailVersand( Settings['Mail']['User'], Settings['Pwd']['Smtp'], Settings['Mail']['Von'],Settings['Mail']['An'])
          self.TestCode = Settings['Pwd']['Test']
 
       except Exception as e:
@@ -483,13 +474,13 @@ class CAcOnOff:
 
       for i in range(1,10+1):
          try:
-            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=str(a.decrypt(self.MariaPwdCode)))
+            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=str(a.decrypt(self.MariaUserCode)), password=str(a.decrypt(self.MariaPwdCode)))
             bConn = True
          except Exception as e:
             self.log.error(f'Fehler in mariadb.connect(): {e}')
 
          try:
-            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=str(a.decrypt(self.MariaPwdCode)))
+            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=str(a.decrypt(self.MariaUserCode)), password=str(a.decrypt(self.MariaPwdCode)))
             bConnLog = True
 
          except Exception as e:
@@ -1654,7 +1645,13 @@ ac.WerteInsLog()                          # Wichtige Konfigurationsdaten ins Log
 #ac.aProgStd[0].dSoc = 5
 #dSocMaxUnter = ac.BerechneMaximaleSocUnterschreitung( ac.aProgStd, tEin, ac.nAnzPrognoseStunden) 
 
-# zweiter Test...
+#zweiter...
+#a = CAesCipher(ac.TestCode)
+#code = a.encrypt('tralalala')
+#decode = a.decrypt(code)
+#print(decode)
+
+# dritter....
 #ac.mail.EmailVersenden(f'Test! Problem beim Berechnen der Solarprognose. Script abgebrochen!', f'Grund:', ac.TestCode)
 #ac.vEndeNormal()
 #quit()
