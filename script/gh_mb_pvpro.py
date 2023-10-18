@@ -1,3 +1,6 @@
+
+# Abfrage der  Solarprognose von Meteoblue
+
 import requests
 import fileinput
 import json
@@ -169,7 +172,7 @@ class CMbSolarForecast:
 #sBytes = base64.b64encode("<mb_api_key>".encode("utf-8"))
 #s = sPwdCode.decode("utf-8")
 #sPwd = base64.b64decode(sPwdCode.decode("utf-8"))
-         sPwdCode = 'NTE3MDNjMjBhN2Iz'
+         sPwdCode = 'gibts bei meteoblue'
          sPwd = base64.b64decode(sPwdCode).decode("utf-8")
 #OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
 
