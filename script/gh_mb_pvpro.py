@@ -106,14 +106,6 @@ class CMbSolarForecast:
          quit()
       
       try:
-         self.skWPeak = Settings['Moduldaten']['kWPeak']  # z.B. 1.4 Kilowattpeak der installierten Solarkollektoren
-         self.sEffizienz = Settings['Moduldaten']['Effizienz'] # z.B. 0.95" #Effizienz der Solarmodule, 0.2 ...1
-
-         self.iNeigung = Settings['Modulausrichtung']['Neigung'] # z.B. 30  Neigung der Solarmodule, z.B. 30 Grad
-         self.iRichtung = Settings['Modulausrichtung']['Richtung'] # z.B. 210 Ausrichtung der Solarmodule, z.B. 180 (Süd)
-         self.sLongi = Settings['Modulausrichtung']['Longi'] # z.B. "13.4" # Länge
-         self.sLati = Settings['Modulausrichtung']['Lati'] # z.B. "52.6" # Breite
-
          self.sSpeichernVon = Settings['Moduldaten']['SpeichernVon'] # erste Stunde
          self.sSpeichernBis = Settings['Moduldaten']['SpeichernBis'] # letzte Stunde
 
@@ -130,6 +122,15 @@ class CMbSolarForecast:
          self.mail = CMailVersand( Settings['Mail']['User'], Settings['Pwd']['Smtp'], Settings['Mail']['Von'],Settings['Mail']['An'])
 
          self.CfgMp = Settings['MehrfachPrognose']
+
+         self.CfgMd = Settings['Moduldaten']
+         self.iPvFelder = 0
+         fl = self.CfgMd['Felder']
+         for sFeldId in fl:
+            if fl[sFeldId]['Aktiv'] == 'ja':
+               self.iPvFelder += 1
+
+
 
       except Exception as e:
          logging.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
@@ -226,9 +227,10 @@ class CMbSolarForecast:
          sLongi = str(dataCfg['Länge'])
          sLati = str(dataCfg['Breite'])
          sKwPeak = str(iKwPeak)
+         sEffizienz = '0.95'
 #         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + self.aes.decrypt(self.MbApiKeyCode) + "&lat=" + sLati \
  #                 + "&lon=" + sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(iNeigung) + "&kwp=" + sKwPeak + "&facing=" \
-  #               + str(iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
+  #               + str(iRichtung) + "&tracker=0&power_efficiency=" + sEffizienz
    #      response = requests.get(api_url)
          #data = response.json()
 
@@ -297,40 +299,49 @@ class CMbSolarForecast:
 
 
 
-   ###### HolePrognose(self): ##############################################################################
-   def HolePrognose(self):
-      print("Programmstart")
+   ###### HoleEinePrognose ##############################################################################
+   def HoleEinePrognose(self, sFeldId, dLongi, dLati, dKwPeak, dEff, iNeigung, iRichtung ):
+      print(f'HoleEinePrognose({sFeldId}, {dLongi}, {dLati}, {dKwPeak}, {dEff},{iNeigung}, {iRichtung})')
 
       try:
-#***********************************************************************************/
-# meteoblue-API exemplary request
-#***********************************************************************************/
-# Data packages / weather maps / images: pvpro-1h
-# https://docs.meteoblue.com/en/weather-apis/packages-api/forecast-data#pv-pro
-# liefert 
-# - PV power in kWh
-# - GTI Global Tilted Irradiance (Radiation) in W/m2
-# 4 Wochen Test-Abo:
-#	API calls per day (number): maximum 25/day
-#	Service expiry (date): 15.06.2023
-#
-# Differenz zwischen den _instant und _backward-Datenreihen siehe https://content.meteoblue.com/en/research-education/specifications/weather-variables/radiation
-# „The backwards value will be the average…So, for production, the backwards value is definitely more useful.”
-# 
+         #***********************************************************************************/
+         # meteoblue-API exemplary request
+         #***********************************************************************************/
+         # Data packages / weather maps / images: pvpro-1h
+         # https://docs.meteoblue.com/en/weather-apis/packages-api/forecast-data#pv-pro
+         # liefert 
+         # - PV power in kWh
+         # - GTI Global Tilted Irradiance (Radiation) in W/m2
+         # 4 Wochen Test-Abo:
+         #	API calls per day (number): maximum 25/day
+         #	Service expiry (date): 15.06.2023
+         #
+         # Differenz zwischen den _instant und _backward-Datenreihen siehe https://content.meteoblue.com/en/research-education/specifications/weather-variables/radiation
+         # „The backwards value will be the average…So, for production, the backwards value is definitely more useful.”
+         # 
 
-#OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
+         #OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
 
-#Um Calls/Credits zu sparen kann das Script ab hier auch mit einer vorher gespeicherten Datei getestet werden:
+         #Um Calls/Credits zu sparen kann das Script ab hier auch mit einer vorher gespeicherten Datei getestet werden:
 #         tNow = datetime.datetime(2023,8,28,13,35)
 #         sNow = tNow.strftime("%Y-%m-%d-%H-%M")
-#         sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\meteoblue\\mb_pvpro_2023-08-29-14-19.json"
-#         f = open(sFile, "r")
-#         data = json.load(f)
-#         f.close()
+         sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\meteoblue\\mb_pvpro_2023-10-19-14-31.json"
+         f = open(sFile, "r")
+         data = json.load(f)
+         f.close()
+     
+         sLati = str(dLati)
+         sLongi = str(dLongi)
+         sEff = str(dEff)
+         sKwPeak = str(dKwPeak)
+         sRichtung = str(iRichtung)
+         sNeigung = str(iNeigung)
          a = CAesCipher(self.TestCode)
-         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + a.decrypt(self.MbApiKeyCode) + "&lat=" + self.sLati + "&lon=" + self.sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(self.iNeigung) + "&kwp=" + self.skWPeak + "&facing=" + str(self.iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
-         response = requests.get(api_url)
-         data = response.json()
+         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + a.decrypt(self.MbApiKeyCode) \
+            + "&lat=" + sLati + "&lon=" + sLongi + "&format=json&tz=Europe%2FBerlin&slope=" \
+            + sNeigung + "&kwp=" + sKwPeak + "&facing=" + sRichtung + "&tracker=0&power_efficiency=" + sEff
+#         response = requests.get(api_url)
+ #        data = response.json()
 
 
          #für Vergleichszwecke auch noch als Datei speichern
@@ -347,8 +358,9 @@ class CMbSolarForecast:
 
          # Metadaten der Abfrage speichern
          cur = self.mdb.cursor()
-         stmt = "INSERT INTO solar2023.t_abfragen (tAbfrage, dLongitude, dLatitude, tModelRun, tModelRunUpdate, dkWPeak, iNeigung, iRichtung, dEffizienz) VALUES( CONVERT(%s,datetime), CONVERT(%s,double), CONVERT(%s,double), CONVERT(%s,datetime),CONVERT(%s,datetime),CONVERT(%s,double), %d, %d,CONVERT(%s,double))"
-         values = ( self.sNow, self.sLongi, self.sLati, modelrun, modelrun_upd,self.skWPeak, self.iNeigung, self.iRichtung, self.sEffizienz)
+         stmt = "INSERT INTO solar2023.t_abfragen (tAbfrage, sFeldname, dLongitude, dLatitude, tModelRun, tModelRunUpdate, dkWPeak, iNeigung, iRichtung, dEffizienz) \
+            VALUES( CONVERT(%s,datetime), %s, CONVERT(%s,double), CONVERT(%s,double), CONVERT(%s,datetime),CONVERT(%s,datetime),CONVERT(%s,double), CONVERT(%s,int), CONVERT(%s,int),CONVERT(%s,double))"
+         values = ( self.sNow, sFeldId, sLongi, sLati, modelrun, modelrun_upd, sKwPeak, sNeigung, sRichtung, sEff)
          cur.execute( stmt,values)
 
  
@@ -383,10 +395,10 @@ class CMbSolarForecast:
             else:
                continue
 
-            dkWh = data['data_1h']['pvpower_backwards'][t] # Stunde scheint nach Auskunft von MB vom 17.5.2023 zu bedeuten "Ertrag bis zu dieser Stunde"
+            dkWh = data['data_1h']['pvpower_backwards'][t] # backwards-Stunde scheint nach Auskunft von Meteoblue vom 17.5.2023 zu bedeuten "Ertrag bis zu dieser Stunde"
 
-            stmt = "insert into solar2023.t_prognose (stunde, " + sField + ") values(CONVERT('{0}',datetime), {1}) ON DUPLICATE KEY UPDATE " + sField + "={1}" 
-            stmt = stmt.format(sStunde, dkWh)
+            stmt = "insert into solar2023.t_prognose (Stunde, Feldname, " + sField + ") values(CONVERT('{0}', datetime), '{1}', {2}) ON DUPLICATE KEY UPDATE " + sField + "={2}" 
+            stmt = stmt.format(sStunde, sFeldId, dkWh )
             print(stmt)
             cur.execute( stmt)
 
@@ -395,6 +407,35 @@ class CMbSolarForecast:
          self.Error2Log(f'Fehler in HolePrognose(): {e}')
          self.vScriptAbbruch()
 
+   ###### HolePrognosen(self)  ##############################################################################
+   def HolePrognosen(self):
+         dLongi = self.CfgMd['Longi']
+         dLati = self.CfgMd['Lati']
+
+         fl = self.CfgMd['Felder']
+         for sFeldId in fl:
+            if fl[sFeldId]['Aktiv'] != 'ja':
+               continue
+            iRichtung  = fl[sFeldId]['Richtung']
+            iNeigung = fl[sFeldId]['Neigung']
+            dKwPeak = fl[sFeldId]['KwPeak']
+            dEff = fl[sFeldId]['Effizienz']
+            self.HoleEinePrognose( sFeldId, dLongi, dLati, dKwPeak, dEff, iRichtung, iNeigung)
+
+
+###### PruefeStunde(self)  ##############################################################################
+# Sicherstellen, dass die täglich erlaubten 25 meteoblue-Calls eingehalten werden
+# nachts darf nicht nachgeladen werden --> keine calls sinnvoll
+# 25 aufteilen auf alle Flächen: aktuell 2 --> 12 Calls
+   def PruefeStunde(self):     
+      if self.iPvFelder == 1:
+         return True #bei nur einem Feld alle Calls anschöpfen
+
+      if self.tNow.hour in (1,5,6,7,8,9,10,11,12,13,14,18):
+         return True
+      
+      self.Info2Log('Prognose kann nicht abgeholt werden, weil in dieser Stunde kein Call möglich ist.')      
+      return False
 
 ###### CMbSolarForecast  } ##############################################################################
 
@@ -402,17 +443,16 @@ mf = CMbSolarForecast()                    # Konfigdatei lesen
 
 mf.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
 
-#a = CAesCipher(mf.TestCode)
-#code = a.encrypt('tralala')
-#decode = a.decrypt(code)
-#print(decode)
+if mf.CfgMp['Aktiv'] == 'ja':
+   mf.MehrfachPrognose()
+   mf.vEndeNormal()
+   quit()
 
-#if mf.CfgMp['Aktiv'] == 'ja':
-#   mf.MehrfachPrognose()
-#   mf.vEndeNormal()
-#   quit()
+if mf.PruefeStunde() == False:           # Sicherstellen, dass die täglich erlaubten 25 meteoblue-Calls eingehalten werden
+   mf.vEndeNormal()
+   quit()
 
-mf.HolePrognose()                       # Prognose abfragen und speichern
+mf.HolePrognosen()                       # Prognose abfragen und speichern
 mf.mdb.commit()
 mf.Info2Log(f'DB aktualisiert')
 
