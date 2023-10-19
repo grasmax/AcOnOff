@@ -1,5 +1,4 @@
-
-# Abfrage der  Solarprognose von Meteoblue
+# Holt die Solarprognose von Meteoblue und speichert sie in die Datenbank
 
 import requests
 import fileinput
@@ -11,7 +10,68 @@ import mariadb
 import logging
 from logging.handlers import RotatingFileHandler
 import time
+from Crypto.Cipher import AES
+from Crypto import Random
+import smtplib
+from email.mime.text import MIMEText
 
+
+###### CAesCipher    ##############################################################################
+#  https://stackoverflow.com/questions/12524994/encrypt-and-decrypt-using-pycrypto-aes-256 / 258
+BS = 16
+pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS).encode()
+unpad = lambda s: s[:-ord(s[len(s)-1:])]
+class CAesCipher:
+
+   def __init__( self, TestCode):
+        self.key = bytes(TestCode, 'utf-8')
+
+   def encrypt( self, Text ):
+      encText = Text.encode()
+      raw = pad(encText)
+
+      iv = Random.new().read( AES.block_size )
+      cipher = AES.new( self.key, AES.MODE_CBC, iv )
+
+      ce = base64.b64encode( iv + cipher.encrypt( raw ) )
+      print (ce)
+      return ce
+
+   def decrypt( self, Text ):
+      enc = base64.b64decode(Text)
+      iv = enc[:16]
+      cipher = AES.new(self.key, AES.MODE_CBC, iv )
+      dec = cipher.decrypt( enc[16:] )
+      u = unpad(dec)
+      return u.decode("utf-8") 
+
+
+###### CMailVersand   ##############################################################################
+class CMailVersand:
+   def __init__(self, sSmtpUser, sSmtpPwdCode, Von, An):
+      
+      self.SmtpUser = sSmtpUser
+      self.SmtpPwdCode = sSmtpPwdCode
+      self.Von = Von
+      self.An = An
+
+   ###### EmailVersenden(self, sBetreff, sText) ##############################################################################
+   def EmailVersenden(self, sBetreff, sText, sTestCode):
+
+    server = smtplib.SMTP_SSL('smtp.ionos.de',465,)
+    # server.set_debuglevel(1)
+
+    a = CAesCipher( sTestCode)
+    server.login( self.SmtpUser, a.decrypt(self.SmtpPwdCode))
+    
+    message = MIMEText(sText, 'plain')
+    message['Subject'] = sBetreff
+    message['From'] = self.Von
+    message['To'] = ", ".join(self.An)
+    
+    server.sendmail( self.Von, self.An,  message.as_string())
+    print(message.as_string()) 
+    server.quit()
 
 ###### CMbSolarForecast  { ##############################################################################
 class CMbSolarForecast:
@@ -60,9 +120,16 @@ class CMbSolarForecast:
          self.sDateipfad = Settings['Datei']['Pfad'] # z.B. "E:\dev_priv\python_svn\solarprognose1\webreq1\meteoblue\mb_pvpro_"
 
          self.MariaIp = Settings['MariaDb']['IP']
-         self.MariaUser = Settings['MariaDb']['User']
-         sPwdCode = Settings['MariaDb']['PwdCode']
-         self.MariaPwd = base64.b64decode(sPwdCode).decode("utf-8")
+         self.MariaUserCode = Settings['MariaDb']['User']
+         self.MariaPwdCode = Settings['Pwd']['MariaDb']
+         
+         self.TestCode = Settings['Pwd']['Test']
+         self.aes = CAesCipher(self.TestCode)
+         self.MbApiKeyCode = Settings['Pwd']['mb']
+
+         self.mail = CMailVersand( Settings['Mail']['User'], Settings['Pwd']['Smtp'], Settings['Mail']['Von'],Settings['Mail']['An'])
+
+         self.CfgMp = Settings['MehrfachPrognose']
 
       except Exception as e:
          logging.error(f'Fehler beim Einlesen von: {sCfgFile}: {e}')
@@ -85,7 +152,7 @@ class CMbSolarForecast:
       self.Error2Log('Abbruch mit mdb-close')
       self.mdb.close()
       self.mdbLog.close()
- #$$ hier müsste noch eine email/sms verschickt werden!
+      self.mail.EmailVersenden(f'Problem beim Abholen der Solarprognose. Script abgebrochen!', f'Grund:', self.TestCode)
       quit()
 
 
@@ -98,6 +165,10 @@ class CMbSolarForecast:
       try:
          cur.execute( sStmt)
          self.mdbLog.commit()
+         if eTyp == "info":
+            logging.info(sText)
+         else:
+            logging.error(sText)
          print(f'Logeintrag: {eTyp}: {sText}')
 
       except Exception as e:
@@ -124,17 +195,17 @@ class CMbSolarForecast:
       bConnLog = False
       for i in range(1,10+1):
          try:
-            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
+            self.mdb = mariadb.connect( host=self.MariaIp, port=3306,user=str(self.aes.decrypt(self.MariaUserCode)), password=str(self.aes.decrypt(self.MariaPwdCode)))
             bConn = True
          except Exception as e:
-            logging.error(f'Fehler in mariadb.connect(): {e}')
+            self.log.error(f'Fehler in mariadb.connect(): {e}')
 
          try:
-            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=self.MariaUser, password=self.MariaPwd)
+            self.mdbLog = mariadb.connect( host=self.MariaIp, port=3306,user=str(self.aes.decrypt(self.MariaUserCode)), password=str(self.aes.decrypt(self.MariaPwdCode)))
             bConnLog = True
 
          except Exception as e:
-            logging.error(f'Fehler in mariadb.connect() fürs Logging: {e}')
+            self.log.error(f'Fehler in mariadb.connect() fürs Logging: {e}')
 
          if bConnLog == True and bConn == True:
             break
@@ -148,12 +219,89 @@ class CMbSolarForecast:
       # ab hier Logging in die MariaDb-Tabelle t_charge_log
       self.Info2Log('mdb-connect ok')
 
+   ###### HoleMehrfachPrognose(self)  #####################################################################
+   def HoleMehrfachPrognose(self, iKwPeak, iRichtung, iNeigung, dataCfg):
+      try:
 
+         sLongi = str(dataCfg['Länge'])
+         sLati = str(dataCfg['Breite'])
+         sKwPeak = str(iKwPeak)
+#         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + self.aes.decrypt(self.MbApiKeyCode) + "&lat=" + sLati \
+ #                 + "&lon=" + sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(iNeigung) + "&kwp=" + sKwPeak + "&facing=" \
+  #               + str(iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
+   #      response = requests.get(api_url)
+         #data = response.json()
+
+    # für Testzwecke:
+         sFile = "E:\\dev_priv\\python_svn\\solarprognose1\\webreq1\\meteoblue\\mb_pvpro_2023-10-18-12-36_b_45_sud_1_4.json"
+         f = open(sFile, "r")
+         data = json.load(f)
+         f.close()
+
+         dkwhGesamt = 0.0
+         times = data['data_1h']['time']
+         hours = len(times)
+
+         dataCfg['Von'] = data['data_1h']['time'][0]
+         dataCfg['Bis'] = data['data_1h']['time'][hours-1]
+
+         for t in range(1,hours): # bei 1 beginnen weil in backwards-Reihe der erste Wert  0 ist
+            sStunde = data['data_1h']['time'][t]
+            tStunde = datetime.datetime.strptime(sStunde, '%Y-%m-%d %H:%M')
+            dkWh = round(data['data_1h']['pvpower_backwards'][t] , 2)
+            dkwhGesamt = round(dkwhGesamt + dkWh, 2)
+            print (f'{sStunde}: {dkWh} --> {dkwhGesamt}')
+         return dkwhGesamt
+
+      except Exception as e:
+         self.Error2Log(f'Fehler in HoleMehrfachPrognose(): {e}')
+         self.vScriptAbbruch()
+
+   ###### MehrfachPrognose(self) ##############################################################################
+   def MehrfachPrognose(self):
+      print( "MehrfachPrognose")
+
+      try:
+
+         jdata = {}
+         sjId = 'Solar-Mehrfachprognose'
+         jdata[sjId ] = {}
+
+         dataCfg = {}
+         dataCfg['Zeitpunkt'] = self.sNow
+         dataCfg['Länge'] = self.CfgMp['Longi']
+         dataCfg['Breite'] = self.CfgMp['Lati']
+         dataCfg['Einheiten'] = 'Richtung: Grad, Neigung: Grad, Daten: kWh'
+
+         data = {}
+         fl = self.CfgMp['Felder']
+         for feld in fl:
+            iRichtung  = fl[feld]['Richtung']
+            iNeigung = fl[feld]['Neigung']
+            iKwPeak = fl[feld]['KwPeak']
+            sP = f'{iRichtung}-{iNeigung}-{iKwPeak}'
+            data[sP] = self.HoleMehrfachPrognose( iKwPeak, iRichtung, iNeigung , dataCfg)
+
+         jdata[sjId]['Konfiguration'] = dataCfg
+         jdata[sjId]['Daten'] = data
+
+         sFile = self.sDateipfad + "_mp_" + self.sNow + ".json"
+         f = open(sFile, "w", encoding='utf-8')
+         json.dump(jdata, f, ensure_ascii=False, indent=4)
+         f.close()
+          
+      except Exception as e:
+         self.Error2Log(f'Fehler in HoleMehrfachPrognose(): {e}')
+         self.vScriptAbbruch()
+
+
+
+
+   ###### HolePrognose(self): ##############################################################################
    def HolePrognose(self):
       print("Programmstart")
 
       try:
-
 #***********************************************************************************/
 # meteoblue-API exemplary request
 #***********************************************************************************/
@@ -169,11 +317,7 @@ class CMbSolarForecast:
 # Differenz zwischen den _instant und _backward-Datenreihen siehe https://content.meteoblue.com/en/research-education/specifications/weather-variables/radiation
 # „The backwards value will be the average…So, for production, the backwards value is definitely more useful.”
 # 
-#sBytes = base64.b64encode("<mb_api_key>".encode("utf-8"))
-#s = sPwdCode.decode("utf-8")
-#sPwd = base64.b64decode(sPwdCode.decode("utf-8"))
-         sPwdCode = 'gibts bei meteoblue'
-         sPwd = base64.b64decode(sPwdCode).decode("utf-8")
+
 #OK api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=********&lat=52.5244&lon=13.4105&asl=74&format=json&tz=Europe%2FBerlin&slope=30&kwp=1&facing=180&tracker=0&power_efficiency=0.85"
 
 #Um Calls/Credits zu sparen kann das Script ab hier auch mit einer vorher gespeicherten Datei getestet werden:
@@ -183,7 +327,8 @@ class CMbSolarForecast:
 #         f = open(sFile, "r")
 #         data = json.load(f)
 #         f.close()
-         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + sPwd + "&lat=" + self.sLati + "&lon=" + self.sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(self.iNeigung) + "&kwp=" + self.skWPeak + "&facing=" + str(self.iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
+         a = CAesCipher(self.TestCode)
+         api_url = "https://my.meteoblue.com/packages/pvpro-1h?apikey=" + a.decrypt(self.MbApiKeyCode) + "&lat=" + self.sLati + "&lon=" + self.sLongi + "&format=json&tz=Europe%2FBerlin&slope=" + str(self.iNeigung) + "&kwp=" + self.skWPeak + "&facing=" + str(self.iRichtung) + "&tracker=0&power_efficiency=" + self.sEffizienz
          response = requests.get(api_url)
          data = response.json()
 
@@ -197,10 +342,8 @@ class CMbSolarForecast:
          f.write( sPretty)
          f.close()
 
-
          modelrun = data['metadata']['modelrun_utc']
          modelrun_upd = data['metadata']['modelrun_updatetime_utc']
-
 
          # Metadaten der Abfrage speichern
          cur = self.mdb.cursor()
@@ -258,6 +401,16 @@ class CMbSolarForecast:
 mf = CMbSolarForecast()                    # Konfigdatei lesen 
 
 mf.VerbindeMitMariaDb()                   # Verbindung zur DB herstellen, zweite Verbindung fürs Log
+
+#a = CAesCipher(mf.TestCode)
+#code = a.encrypt('tralala')
+#decode = a.decrypt(code)
+#print(decode)
+
+#if mf.CfgMp['Aktiv'] == 'ja':
+#   mf.MehrfachPrognose()
+#   mf.vEndeNormal()
+#   quit()
 
 mf.HolePrognose()                       # Prognose abfragen und speichern
 mf.mdb.commit()
