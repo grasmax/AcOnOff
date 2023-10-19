@@ -885,7 +885,9 @@ class CAcOnOff:
       sVon = self.sDate2Str(self.tEin)
       sBis = self.sDate2Str(tSollEnde)
 
-      sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
+      sStmt = f"select stunde,sum(p1),sum(p3),sum(p6),sum(p12),sum(p24) from solar2023.t_prognose \
+                     where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H') \
+                     group by stunde \
                      order by stunde"
 
       cur = self.mdb.cursor()
@@ -1187,7 +1189,9 @@ class CAcOnOff:
             sVon = self.sDate2Str(tEin + datetime.timedelta(hours=1)) # eine Stunde addieren, weil in der Prognosetabelle die backwards-Werte (Prognose bis nn Uhr...)
             tEnd = tEin + datetime.timedelta(hours=iStunden)
             sBis = self.sDate2Str(tEnd)
-            sStmt = f"select stunde,p1,p3,p6,p12,p24 from solar2023.t_prognose where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H')\
+            sStmt = f"select stunde,sum(p1),sum(p3),sum(p6),sum(p12),sum(p24) from solar2023.t_prognose \
+                        where Stunde BETWEEN  STR_TO_DATE('{sVon}', '%Y-%m-%d %H') AND STR_TO_DATE('{sBis}', '%Y-%m-%d %H') \
+                        group by stunde \
                         order by stunde"
 
             cur = self.mdb.cursor()
