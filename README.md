@@ -8,7 +8,7 @@ Diese Scriptdateien sollen auf einem _Raspberry Pi_ ausgeführt werden und die S
 Die Entwicklung ist noch nicht abgeschlossen, Tests finden unter _Windows 10_ und _Raspberry Pi OS_ statt.<br> Da _GPIO_ unter _Windows_ nicht zur Verfügung steht, wird die Funktionalität beim Test unter _Windows_ durch eine Hilfsklasse simuliert.
 
 Das Laden der Batterie erfolgt in Abhängigkeit von der Solarprognose, die von [_meteoblue_](https://www.meteoblue.com) zur Verfügung gestellt wird.
-In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die über _Victron_ ssh/dbus ermittelt werden.
+In die Berechnung gehen auch Anlagenwerte wie SOC und Verbrauch ein, die ursprünglich über _Victron_ ssh/dbus ermittelt wurden. Seit Juni 2024 wurde die Lesefunktion auf ModbusTCP umgestellt, weil diese Lesezugriffe sehr viel schneller sind als über ssh/dbus.
 Verbrauchswerte werden mit dem Zähler [_EM540_](https://www.gavazziautomation.com/images/PIM/DATASHEET/DEU/EM540_DS_DEU.pdf) erfasst.
 
 * gh_solarprognose.sql - Script zum Anlegen des Schemas für die MariaDB-Datenbank
@@ -19,6 +19,7 @@ Verbrauchswerte werden mit dem Zähler [_EM540_](https://www.gavazziautomation.c
 * [gh_mpIIAcOnOff.py](https://github.com/grasmax/AcOnOff/blob/main/script/gh_mpIIAcOnOff.py) - Das eigentliche Schaltscript
 * gh_mpIIAcOnOff.cfg - Alle Einstellungen für das Schaltscript
 * [gh_schaltschema.pdf](https://github.com/grasmax/AcOnOff/blob/main/doc/gh_schaltschema.pdf) - Schaltschema: Raspi-GPIO-Relaisboard-Stromstoßschalter-Leistungsschütz-MPII
+* [gh_modbustcp.py](https://github.com/grasmax/AcOnOff/blob/main/script/gh_modbustcp.py) - Lesen von Anlagenwerten aus Victron Cerbo GX mittels pymodbus und ModbusTCP
 
 Alle Scripte werden auf diesem Controller ausgeführt:
 * Raspberry Pi CM4IO Board
