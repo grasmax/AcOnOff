@@ -29,3 +29,5 @@ Alle Scripte werden auf diesem Controller ausgeführt:
   
 Der Aufbau und die Inbetriebnahme des Controllers ist [hier](https://github.com/grasmax/AcOnOff/blob/main/doc/Inbetriebnahme%20eines%20Steuerrechners%20f%C3%BCr%20eine%20Photovoltaikinsel.pdf) beschrieben.
 
+Das Cockpit für die Anlage ist [hier](https://github.com/grasmax/d4) beschrieben.
+
